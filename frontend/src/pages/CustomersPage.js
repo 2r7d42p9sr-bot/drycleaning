@@ -680,7 +680,9 @@ export default function CustomersPage() {
                                 <span className="font-bold text-slate-800">${order.total?.toFixed(2)}</span>
                               </div>
                               <p className="text-xs text-slate-400 mt-1">
-                                {format(new Date(order.timestamps?.created_at), "MMM d, yyyy h:mm a")}
+                                {order.timestamps?.created_at 
+                                  ? format(new Date(order.timestamps.created_at), "MMM d, yyyy h:mm a")
+                                  : 'Unknown date'}
                               </p>
                             </div>
                           ))}
