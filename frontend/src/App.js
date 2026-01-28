@@ -10,6 +10,7 @@ import ItemsPage from "@/pages/ItemsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/StaffPage";
+import DeliveryPage from "@/pages/DeliveryPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import Layout from "@/components/Layout";
 import "@/App.css";
@@ -51,6 +52,7 @@ function App() {
                     <Route path="/customers" element={<CustomersPage />} />
                     <Route path="/orders" element={<OrdersPage />} />
                     <Route path="/items" element={<ItemsPage />} />
+                    <Route path="/delivery" element={<DeliveryPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/staff" element={<StaffPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
