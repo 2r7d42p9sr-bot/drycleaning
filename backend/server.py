@@ -1,10 +1,13 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import csv
+import io
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -44,12 +47,11 @@ class UserRole(str, Enum):
     STAFF = "staff"
 
 class OrderStatus(str, Enum):
-    RECEIVED = "received"
-    PROCESSING = "processing"
+    CLEANING = "cleaning"
     READY = "ready"
     OUT_FOR_DELIVERY = "out_for_delivery"
     DELIVERED = "delivered"
-    PICKED_UP = "picked_up"
+    COLLECTED = "collected"
     CANCELLED = "cancelled"
 
 class ServiceType(str, Enum):
@@ -61,6 +63,8 @@ class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
     BANK_TRANSFER = "bank_transfer"
+    PAY_ON_COLLECTION = "pay_on_collection"
+    INVOICE = "invoice"
 
 class PaymentStatus(str, Enum):
     PENDING = "pending"
@@ -72,6 +76,10 @@ class DeliveryType(str, Enum):
     PICKUP = "pickup"
     DELIVERY = "delivery"
     BOTH = "both"
+
+class CustomerType(str, Enum):
+    RETAIL = "retail"
+    BUSINESS = "business"
 
 
 # ======================== MODELS ========================
@@ -197,17 +205,7 @@ class ItemResponse(ItemBase):
     created_at: str
 
 
-# Customer Models
-class CustomerPreferences(BaseModel):
-    starch_level: Optional[str] = "medium"
-    fold_style: Optional[str] = "standard"
-    special_instructions: Optional[str] = None
-
-class CustomerMeasurements(BaseModel):
-    shirt_size: Optional[str] = None
-    pant_waist: Optional[str] = None
-    pant_length: Optional[str] = None
-
+# Customer Models - Updated with business support
 class CustomerAddress(BaseModel):
     street: str
     city: str
@@ -216,15 +214,33 @@ class CustomerAddress(BaseModel):
     country: str = "US"
     is_default: bool = False
     label: str = "Home"
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+
+class BusinessInfo(BaseModel):
+    company_name: str
+    registration_number: Optional[str] = None
+    vat_number: Optional[str] = None
+    contact_person: Optional[str] = None
+    billing_email: Optional[str] = None
+    payment_terms: int = 30  # Days
+
+class CustomerPreferences(BaseModel):
+    fold_style: Optional[str] = "standard"
+    special_instructions: Optional[str] = None
 
 class CustomerBase(BaseModel):
     name: str
     phone: str
     email: Optional[EmailStr] = None
-    address: Optional[str] = None
+    customer_type: CustomerType = CustomerType.RETAIL
+    discount_percent: float = 0.0
     addresses: Optional[List[CustomerAddress]] = None
     preferences: Optional[CustomerPreferences] = None
-    measurements: Optional[CustomerMeasurements] = None
+    business_info: Optional[BusinessInfo] = None
+    require_advance_payment: bool = False
+    is_blacklisted: bool = False
+    blacklist_reason: Optional[str] = None
 
 class CustomerCreate(CustomerBase):
     pass
@@ -233,20 +249,26 @@ class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
-    address: Optional[str] = None
+    customer_type: Optional[CustomerType] = None
+    discount_percent: Optional[float] = None
     addresses: Optional[List[CustomerAddress]] = None
     preferences: Optional[CustomerPreferences] = None
-    measurements: Optional[CustomerMeasurements] = None
+    business_info: Optional[BusinessInfo] = None
+    require_advance_payment: Optional[bool] = None
+    is_blacklisted: Optional[bool] = None
+    blacklist_reason: Optional[str] = None
 
 class CustomerResponse(CustomerBase):
     id: str
     loyalty_points: int = 0
     total_orders: int = 0
     total_spent: float = 0.0
+    average_order_value: float = 0.0
+    last_order_date: Optional[str] = None
     created_at: str
 
 
-# Order Models
+# Order Models - Updated with timestamps
 class OrderItem(BaseModel):
     item_id: str
     item_name: str
@@ -255,6 +277,7 @@ class OrderItem(BaseModel):
     unit_price: float
     total_price: float
     discount_applied: float = 0.0
+    volume_discount_percent: float = 0.0
     notes: Optional[str] = None
 
 class DeliveryInfo(BaseModel):
@@ -270,15 +293,27 @@ class DeliveryInfo(BaseModel):
     delivery_notes: Optional[str] = None
     delivery_fee: float = 0.0
 
+class OrderTimestamps(BaseModel):
+    created_at: str
+    cleaning_at: Optional[str] = None
+    ready_at: Optional[str] = None
+    collected_at: Optional[str] = None
+    delivered_at: Optional[str] = None
+    cancelled_at: Optional[str] = None
+
 class OrderBase(BaseModel):
     customer_id: str
     customer_name: str
     customer_phone: str
+    customer_type: CustomerType = CustomerType.RETAIL
     items: List[OrderItem]
     subtotal: float
     tax: float
     tax_details: Optional[Dict[str, float]] = None
-    discount: float = 0.0
+    customer_discount_percent: float = 0.0
+    customer_discount_amount: float = 0.0
+    volume_discount_amount: float = 0.0
+    manual_discount: float = 0.0
     total: float
     notes: Optional[str] = None
     estimated_ready: Optional[str] = None
@@ -297,8 +332,7 @@ class OrderResponse(OrderBase):
     status: OrderStatus
     payment_status: PaymentStatus
     payment_method: Optional[PaymentMethod] = None
-    created_at: str
-    updated_at: str
+    timestamps: OrderTimestamps
     created_by: str
 
 
@@ -320,31 +354,15 @@ class PaymentResponse(BaseModel):
     created_at: str
 
 
-# Delivery Schedule Models
-class DeliveryScheduleCreate(BaseModel):
-    order_id: str
-    type: DeliveryType
-    scheduled_date: str
-    time_slot: str
-    address: CustomerAddress
-    driver_id: Optional[str] = None
-    notes: Optional[str] = None
-
-class DeliveryScheduleResponse(BaseModel):
-    id: str
-    order_id: str
-    order_number: str
-    customer_name: str
-    customer_phone: str
-    type: DeliveryType
-    scheduled_date: str
-    time_slot: str
-    address: CustomerAddress
-    driver_id: Optional[str] = None
-    driver_name: Optional[str] = None
-    status: str
-    notes: Optional[str] = None
-    created_at: str
+# Metrics Models
+class MetricsPeriod(BaseModel):
+    start_date: str
+    end_date: str
+    total_revenue: float
+    total_orders: int
+    average_order_value: float
+    new_customers: int
+    repeat_customers: int
 
 
 # ======================== HELPERS ========================
@@ -384,7 +402,6 @@ def generate_order_number() -> str:
     return f"DC{now.strftime('%y%m%d')}{str(uuid.uuid4())[:4].upper()}"
 
 def calculate_volume_discount(item_id: str, quantity: int, volume_discounts: List[VolumeDiscount]) -> float:
-    """Calculate discount based on volume"""
     if not volume_discounts:
         return 0.0
     
@@ -459,7 +476,6 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 async def get_settings(current_user: dict = Depends(get_current_user)):
     settings = await db.settings.find_one({}, {"_id": 0})
     if not settings:
-        # Return default settings
         return {
             "id": "default",
             "settings": BusinessSettings().model_dump(),
@@ -541,7 +557,6 @@ async def create_category(category: CategoryCreate, current_user: dict = Depends
     category_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
-    # Get max sort_order if not provided
     if category.sort_order == 0:
         max_order = await db.categories.find_one(sort=[("sort_order", -1)])
         category.sort_order = (max_order["sort_order"] + 1) if max_order else 1
@@ -588,10 +603,9 @@ async def delete_category(category_id: str, current_user: dict = Depends(get_cur
     if current_user["role"] not in ["admin", "manager"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Check if category has items
     items_count = await db.items.count_documents({"category_id": category_id})
     if items_count > 0:
-        raise HTTPException(status_code=400, detail=f"Cannot delete category with {items_count} items. Move or delete items first.")
+        raise HTTPException(status_code=400, detail=f"Cannot delete category with {items_count} items")
     
     result = await db.categories.delete_one({"id": category_id})
     if result.deleted_count == 0:
@@ -600,7 +614,6 @@ async def delete_category(category_id: str, current_user: dict = Depends(get_cur
 
 @api_router.put("/categories/reorder")
 async def reorder_categories(category_orders: List[Dict[str, Any]], current_user: dict = Depends(get_current_user)):
-    """Update sort order for multiple categories"""
     if current_user["role"] not in ["admin", "manager"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -627,6 +640,8 @@ async def create_customer(customer: CustomerCreate, current_user: dict = Depends
         "loyalty_points": 0,
         "total_orders": 0,
         "total_spent": 0.0,
+        "average_order_value": 0.0,
+        "last_order_date": None,
         "created_at": now
     }
     await db.customers.insert_one(doc)
@@ -636,15 +651,20 @@ async def create_customer(customer: CustomerCreate, current_user: dict = Depends
 @api_router.get("/customers", response_model=List[CustomerResponse])
 async def get_customers(
     search: Optional[str] = None,
+    customer_type: Optional[CustomerType] = None,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
     if search:
-        query = {"$or": [
+        query["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
             {"phone": {"$regex": search, "$options": "i"}},
-            {"email": {"$regex": search, "$options": "i"}}
-        ]}
+            {"email": {"$regex": search, "$options": "i"}},
+            {"business_info.company_name": {"$regex": search, "$options": "i"}}
+        ]
+    if customer_type:
+        query["customer_type"] = customer_type.value
+    
     customers = await db.customers.find(query, {"_id": 0}).to_list(1000)
     return [CustomerResponse(**c) for c in customers]
 
@@ -655,9 +675,81 @@ async def get_customer(customer_id: str, current_user: dict = Depends(get_curren
         raise HTTPException(status_code=404, detail="Customer not found")
     return CustomerResponse(**customer)
 
+@api_router.get("/customers/{customer_id}/orders")
+async def get_customer_orders(
+    customer_id: str,
+    active_only: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    query = {"customer_id": customer_id}
+    if active_only:
+        query["status"] = {"$in": ["cleaning", "ready"]}
+    
+    orders = await db.orders.find(query, {"_id": 0}).sort("timestamps.created_at", -1).to_list(100)
+    return orders
+
+@api_router.get("/customers/{customer_id}/stats")
+async def get_customer_stats(customer_id: str, current_user: dict = Depends(get_current_user)):
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Get order statistics
+    orders = await db.orders.find({"customer_id": customer_id}, {"_id": 0}).to_list(1000)
+    
+    active_orders = [o for o in orders if o.get("status") in ["cleaning", "ready"]]
+    completed_orders = [o for o in orders if o.get("status") in ["collected", "delivered"]]
+    
+    # Calculate stats
+    total_items = sum(sum(i["quantity"] for i in o.get("items", [])) for o in orders)
+    
+    # Most ordered items
+    item_counts = {}
+    for order in orders:
+        for item in order.get("items", []):
+            name = item["item_name"]
+            if name not in item_counts:
+                item_counts[name] = 0
+            item_counts[name] += item["quantity"]
+    
+    top_items = sorted(item_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    # Monthly spending (last 6 months)
+    from collections import defaultdict
+    monthly_spending = defaultdict(float)
+    for order in completed_orders:
+        date = order.get("timestamps", {}).get("created_at", "")[:7]  # YYYY-MM
+        if date:
+            monthly_spending[date] += order.get("total", 0)
+    
+    return {
+        "total_orders": len(orders),
+        "active_orders": len(active_orders),
+        "completed_orders": len(completed_orders),
+        "total_spent": customer.get("total_spent", 0),
+        "average_order_value": customer.get("average_order_value", 0),
+        "loyalty_points": customer.get("loyalty_points", 0),
+        "total_items_cleaned": total_items,
+        "top_items": [{"name": n, "quantity": q} for n, q in top_items],
+        "monthly_spending": [{"month": m, "amount": a} for m, a in sorted(monthly_spending.items())[-6:]],
+        "last_order_date": customer.get("last_order_date"),
+        "member_since": customer.get("created_at")
+    }
+
 @api_router.put("/customers/{customer_id}", response_model=CustomerResponse)
 async def update_customer(customer_id: str, update: CustomerUpdate, current_user: dict = Depends(get_current_user)):
-    update_data = {k: v for k, v in update.model_dump().items() if v is not None}
+    update_data = {}
+    for k, v in update.model_dump().items():
+        if v is not None:
+            if hasattr(v, "model_dump"):
+                update_data[k] = v.model_dump()
+            elif isinstance(v, list) and len(v) > 0 and hasattr(v[0], "model_dump"):
+                update_data[k] = [item.model_dump() if hasattr(item, "model_dump") else item for item in v]
+            elif isinstance(v, Enum):
+                update_data[k] = v.value
+            else:
+                update_data[k] = v
+    
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
     
@@ -686,11 +778,9 @@ async def create_item(item: ItemCreate, current_user: dict = Depends(get_current
     item_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
-    # Get category name
     category = await db.categories.find_one({"id": item.category_id}, {"_id": 0})
     category_name = category["name"] if category else None
     
-    # Get parent name if exists
     parent_name = None
     if item.parent_id:
         parent = await db.items.find_one({"id": item.parent_id}, {"_id": 0})
@@ -712,6 +802,7 @@ async def get_items(
     category_id: Optional[str] = None,
     active_only: bool = True,
     include_children: bool = True,
+    parents_only: bool = False,
     current_user: dict = Depends(get_current_user)
 ):
     query = {}
@@ -719,11 +810,12 @@ async def get_items(
         query["category_id"] = category_id
     if active_only:
         query["is_active"] = True
+    if parents_only:
+        query["parent_id"] = None
     
     items = await db.items.find(query, {"_id": 0}).to_list(1000)
     
-    # Build parent-child relationships
-    if include_children:
+    if include_children and not parents_only:
         parent_items = [i for i in items if not i.get("parent_id")]
         child_items = [i for i in items if i.get("parent_id")]
         
@@ -734,12 +826,17 @@ async def get_items(
     
     return [ItemResponse(**i) for i in items]
 
+@api_router.get("/items/children/{parent_id}")
+async def get_item_children(parent_id: str, current_user: dict = Depends(get_current_user)):
+    """Get child items for a parent item"""
+    children = await db.items.find({"parent_id": parent_id, "is_active": True}, {"_id": 0}).to_list(100)
+    return children
+
 @api_router.get("/items/all")
 async def get_all_items(
     active_only: bool = True,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all items flat (no parent-child grouping)"""
     query = {"is_active": True} if active_only else {}
     items = await db.items.find(query, {"_id": 0}).to_list(1000)
     return [ItemResponse(**i) for i in items]
@@ -750,7 +847,6 @@ async def get_item(item_id: str, current_user: dict = Depends(get_current_user))
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     
-    # Get children if this is a parent item
     children = await db.items.find({"parent_id": item_id}, {"_id": 0}).to_list(100)
     item["children"] = children
     
@@ -763,18 +859,15 @@ async def update_item(item_id: str, update: ItemUpdate, current_user: dict = Dep
     
     update_data = {k: v for k, v in update.model_dump().items() if v is not None}
     
-    # Handle nested models
     if "prices" in update_data and hasattr(update_data["prices"], "model_dump"):
         update_data["prices"] = update_data["prices"].model_dump()
     if "volume_discounts" in update_data and update_data["volume_discounts"]:
         update_data["volume_discounts"] = [vd.model_dump() if hasattr(vd, "model_dump") else vd for vd in update_data["volume_discounts"]]
     
-    # Update category name if category changed
     if "category_id" in update_data:
         category = await db.categories.find_one({"id": update_data["category_id"]}, {"_id": 0})
         update_data["category_name"] = category["name"] if category else None
     
-    # Update parent name if parent changed
     if "parent_id" in update_data:
         if update_data["parent_id"]:
             parent = await db.items.find_one({"id": update_data["parent_id"]}, {"_id": 0})
@@ -794,7 +887,6 @@ async def delete_item(item_id: str, current_user: dict = Depends(get_current_use
     if current_user["role"] not in ["admin", "manager"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Check if item has children
     children_count = await db.items.count_documents({"parent_id": item_id})
     if children_count > 0:
         raise HTTPException(status_code=400, detail=f"Cannot delete item with {children_count} child items")
@@ -806,7 +898,6 @@ async def delete_item(item_id: str, current_user: dict = Depends(get_current_use
 
 @api_router.get("/item-categories")
 async def get_item_categories(current_user: dict = Depends(get_current_user)):
-    """Legacy endpoint - returns category names from items"""
     categories = await db.items.distinct("category_name")
     return {"categories": [c for c in categories if c]}
 
@@ -815,15 +906,26 @@ async def get_item_categories(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/orders", response_model=OrderResponse)
 async def create_order(order: OrderCreate, current_user: dict = Depends(get_current_user)):
+    # Check if customer is blacklisted
+    customer = await db.customers.find_one({"id": order.customer_id}, {"_id": 0})
+    if customer and customer.get("is_blacklisted"):
+        raise HTTPException(status_code=400, detail="Customer is blacklisted and cannot place orders")
+    
     order_id = str(uuid.uuid4())
     order_number = generate_order_number()
     now = datetime.now(timezone.utc).isoformat()
     
-    # Convert items to dict
     items_data = [item.model_dump() for item in order.items]
-    
-    # Convert delivery info if present
     delivery_data = order.delivery_info.model_dump() if order.delivery_info else None
+    
+    timestamps = {
+        "created_at": now,
+        "cleaning_at": now,  # Order starts in cleaning
+        "ready_at": None,
+        "collected_at": None,
+        "delivered_at": None,
+        "cancelled_at": None
+    }
     
     doc = {
         "id": order_id,
@@ -831,32 +933,44 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
         "customer_id": order.customer_id,
         "customer_name": order.customer_name,
         "customer_phone": order.customer_phone,
+        "customer_type": order.customer_type.value if isinstance(order.customer_type, Enum) else order.customer_type,
         "items": items_data,
         "subtotal": order.subtotal,
         "tax": order.tax,
         "tax_details": order.tax_details,
-        "discount": order.discount,
+        "customer_discount_percent": order.customer_discount_percent,
+        "customer_discount_amount": order.customer_discount_amount,
+        "volume_discount_amount": order.volume_discount_amount,
+        "manual_discount": order.manual_discount,
         "total": order.total,
         "notes": order.notes,
         "estimated_ready": order.estimated_ready,
         "delivery_info": delivery_data,
-        "status": OrderStatus.RECEIVED.value,
+        "status": OrderStatus.CLEANING.value,
         "payment_status": PaymentStatus.PENDING.value,
         "payment_method": None,
-        "created_at": now,
-        "updated_at": now,
+        "timestamps": timestamps,
         "created_by": current_user["id"]
     }
     await db.orders.insert_one(doc)
     
     # Update customer stats
+    new_total_spent = (customer.get("total_spent", 0) if customer else 0) + order.total
+    new_total_orders = (customer.get("total_orders", 0) if customer else 0) + 1
+    new_avg = new_total_spent / new_total_orders if new_total_orders > 0 else 0
+    
     await db.customers.update_one(
         {"id": order.customer_id},
-        {"$inc": {"total_orders": 1, "total_spent": order.total}}
+        {"$set": {
+            "total_orders": new_total_orders,
+            "total_spent": new_total_spent,
+            "average_order_value": round(new_avg, 2),
+            "last_order_date": now
+        }}
     )
     
     doc.pop("_id", None)
-    return OrderResponse(**doc)
+    return OrderResponse(**doc, timestamps=OrderTimestamps(**timestamps))
 
 @api_router.get("/orders", response_model=List[OrderResponse])
 async def get_orders(
@@ -882,27 +996,54 @@ async def get_orders(
         else:
             query["delivery_info"] = None
     if date_from:
-        query["created_at"] = {"$gte": date_from}
+        query["timestamps.created_at"] = {"$gte": date_from}
     if date_to:
-        if "created_at" in query:
-            query["created_at"]["$lte"] = date_to
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
         else:
-            query["created_at"] = {"$lte": date_to}
+            query["timestamps.created_at"] = {"$lte": date_to}
     
-    orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
-    return [OrderResponse(**o) for o in orders]
+    orders = await db.orders.find(query, {"_id": 0}).sort("timestamps.created_at", -1).to_list(limit)
+    return [OrderResponse(**o, timestamps=OrderTimestamps(**o.get("timestamps", {}))) for o in orders]
+
+@api_router.get("/orders/by-status")
+async def get_orders_by_status(current_user: dict = Depends(get_current_user)):
+    """Get orders grouped by status for POS tabs"""
+    cleaning_orders = await db.orders.find({"status": "cleaning"}, {"_id": 0}).sort("timestamps.created_at", -1).to_list(500)
+    ready_orders = await db.orders.find({"status": "ready"}, {"_id": 0}).sort("timestamps.ready_at", -1).to_list(500)
+    
+    return {
+        "cleaning": cleaning_orders,
+        "ready": ready_orders
+    }
 
 @api_router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(order_id: str, current_user: dict = Depends(get_current_user)):
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return OrderResponse(**order)
+    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
 
 @api_router.put("/orders/{order_id}/status", response_model=OrderResponse)
 async def update_order_status(order_id: str, update: OrderStatusUpdate, current_user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
-    update_data = {"status": update.status.value, "updated_at": now}
+    
+    # Determine timestamp field to update
+    timestamp_field = None
+    if update.status == OrderStatus.CLEANING:
+        timestamp_field = "timestamps.cleaning_at"
+    elif update.status == OrderStatus.READY:
+        timestamp_field = "timestamps.ready_at"
+    elif update.status == OrderStatus.COLLECTED:
+        timestamp_field = "timestamps.collected_at"
+    elif update.status == OrderStatus.DELIVERED:
+        timestamp_field = "timestamps.delivered_at"
+    elif update.status == OrderStatus.CANCELLED:
+        timestamp_field = "timestamps.cancelled_at"
+    
+    update_data = {"status": update.status.value}
+    if timestamp_field:
+        update_data[timestamp_field] = now
     if update.notes:
         update_data["notes"] = update.notes
     
@@ -911,7 +1052,7 @@ async def update_order_status(order_id: str, update: OrderStatusUpdate, current_
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return OrderResponse(**order)
+    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
 
 
 # ======================== DELIVERY ROUTES ========================
@@ -923,7 +1064,6 @@ async def get_deliveries(
     driver_id: Optional[str] = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all orders with delivery/pickup scheduled"""
     query = {"delivery_info": {"$ne": None}}
     
     if date:
@@ -938,7 +1078,7 @@ async def get_deliveries(
     if driver_id:
         query["delivery_info.driver_id"] = driver_id
     
-    orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    orders = await db.orders.find(query, {"_id": 0}).sort("timestamps.created_at", -1).to_list(500)
     
     deliveries = []
     for order in orders:
@@ -951,7 +1091,7 @@ async def get_deliveries(
             "status": order["status"],
             "delivery_info": delivery_info,
             "total": order["total"],
-            "created_at": order["created_at"]
+            "timestamps": order.get("timestamps", {})
         })
     
     return deliveries
@@ -962,23 +1102,19 @@ async def update_order_delivery(
     delivery_info: DeliveryInfo,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update delivery information for an order"""
-    now = datetime.now(timezone.utc).isoformat()
-    
     result = await db.orders.update_one(
         {"id": order_id},
-        {"$set": {"delivery_info": delivery_info.model_dump(), "updated_at": now}}
+        {"$set": {"delivery_info": delivery_info.model_dump()}}
     )
     
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return OrderResponse(**order)
+    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
 
 @api_router.get("/drivers")
 async def get_drivers(current_user: dict = Depends(get_current_user)):
-    """Get list of users who can be assigned as drivers"""
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(100)
     return [{"id": u["id"], "name": u["name"]} for u in users]
 
@@ -993,6 +1129,11 @@ async def create_payment(payment: PaymentCreate, request: Request, current_user:
     
     if order["payment_status"] == PaymentStatus.COMPLETED.value:
         raise HTTPException(status_code=400, detail="Order already paid")
+    
+    # Invoice only for business customers
+    if payment.payment_method == PaymentMethod.INVOICE:
+        if order.get("customer_type") != "business":
+            raise HTTPException(status_code=400, detail="Invoice payment only available for business customers")
     
     payment_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -1009,7 +1150,6 @@ async def create_payment(payment: PaymentCreate, request: Request, current_user:
     }
     
     if payment.payment_method == PaymentMethod.CARD:
-        # Stripe payment
         from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
         
         api_key = os.environ.get("STRIPE_API_KEY")
@@ -1034,23 +1174,41 @@ async def create_payment(payment: PaymentCreate, request: Request, current_user:
         payment_doc["checkout_url"] = session.url
     
     elif payment.payment_method in [PaymentMethod.CASH, PaymentMethod.BANK_TRANSFER]:
-        # Direct payment - mark as completed
         payment_doc["status"] = PaymentStatus.COMPLETED.value
         
-        # Update order payment status
         await db.orders.update_one(
             {"id": payment.order_id},
             {"$set": {
                 "payment_status": PaymentStatus.COMPLETED.value,
-                "payment_method": payment.payment_method.value,
-                "updated_at": now
+                "payment_method": payment.payment_method.value
             }}
         )
         
-        # Add loyalty points (1 point per dollar)
         await db.customers.update_one(
             {"id": order["customer_id"]},
             {"$inc": {"loyalty_points": int(payment.amount)}}
+        )
+    
+    elif payment.payment_method == PaymentMethod.PAY_ON_COLLECTION:
+        # Payment pending until collection
+        payment_doc["status"] = PaymentStatus.PENDING.value
+        
+        await db.orders.update_one(
+            {"id": payment.order_id},
+            {"$set": {
+                "payment_method": payment.payment_method.value
+            }}
+        )
+    
+    elif payment.payment_method == PaymentMethod.INVOICE:
+        # Invoice - mark as pending, payment tracked separately
+        payment_doc["status"] = PaymentStatus.PENDING.value
+        
+        await db.orders.update_one(
+            {"id": payment.order_id},
+            {"$set": {
+                "payment_method": payment.payment_method.value
+            }}
         )
     
     await db.payment_transactions.insert_one(payment_doc)
@@ -1067,7 +1225,6 @@ async def get_payment_status(session_id: str, current_user: dict = Depends(get_c
     
     status = await stripe_checkout.get_checkout_status(session_id)
     
-    # Update payment if completed
     if status.payment_status == "paid":
         payment = await db.payment_transactions.find_one({"stripe_session_id": session_id}, {"_id": 0})
         if payment and payment["status"] != PaymentStatus.COMPLETED.value:
@@ -1082,12 +1239,10 @@ async def get_payment_status(session_id: str, current_user: dict = Depends(get_c
                 {"id": payment["order_id"]},
                 {"$set": {
                     "payment_status": PaymentStatus.COMPLETED.value,
-                    "payment_method": PaymentMethod.CARD.value,
-                    "updated_at": now
+                    "payment_method": PaymentMethod.CARD.value
                 }}
             )
             
-            # Add loyalty points
             order = await db.orders.find_one({"id": payment["order_id"]}, {"_id": 0})
             if order:
                 await db.customers.update_one(
@@ -1131,8 +1286,7 @@ async def stripe_webhook(request: Request):
                     {"id": payment["order_id"]},
                     {"$set": {
                         "payment_status": PaymentStatus.COMPLETED.value,
-                        "payment_method": PaymentMethod.CARD.value,
-                        "updated_at": now
+                        "payment_method": PaymentMethod.CARD.value
                     }}
                 )
         
@@ -1142,7 +1296,352 @@ async def stripe_webhook(request: Request):
         return {"received": True}
 
 
-# ======================== REPORTS ROUTES ========================
+# ======================== METRICS ROUTES ========================
+
+@api_router.get("/metrics/overview")
+async def get_metrics_overview(
+    period: str = "month",  # day, week, month, year
+    current_user: dict = Depends(get_current_user)
+):
+    """Get key metrics with comparison to previous period"""
+    now = datetime.now(timezone.utc)
+    
+    # Define periods
+    if period == "day":
+        current_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        previous_start = current_start - timedelta(days=1)
+    elif period == "week":
+        current_start = now - timedelta(days=now.weekday())
+        current_start = current_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        previous_start = current_start - timedelta(weeks=1)
+    elif period == "month":
+        current_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_start = (current_start - timedelta(days=1)).replace(day=1)
+    else:  # year
+        current_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        previous_start = current_start.replace(year=current_start.year - 1)
+    
+    current_start_str = current_start.isoformat()
+    previous_start_str = previous_start.isoformat()
+    previous_end_str = current_start.isoformat()
+    
+    # Current period orders
+    current_orders = await db.orders.find({
+        "timestamps.created_at": {"$gte": current_start_str},
+        "payment_status": "completed"
+    }, {"_id": 0}).to_list(10000)
+    
+    # Previous period orders
+    previous_orders = await db.orders.find({
+        "timestamps.created_at": {"$gte": previous_start_str, "$lt": previous_end_str},
+        "payment_status": "completed"
+    }, {"_id": 0}).to_list(10000)
+    
+    # Calculate metrics
+    current_revenue = sum(o["total"] for o in current_orders)
+    previous_revenue = sum(o["total"] for o in previous_orders)
+    
+    current_count = len(current_orders)
+    previous_count = len(previous_orders)
+    
+    current_avg = current_revenue / current_count if current_count > 0 else 0
+    previous_avg = previous_revenue / previous_count if previous_count > 0 else 0
+    
+    # New customers
+    current_new_customers = await db.customers.count_documents({
+        "created_at": {"$gte": current_start_str}
+    })
+    previous_new_customers = await db.customers.count_documents({
+        "created_at": {"$gte": previous_start_str, "$lt": previous_end_str}
+    })
+    
+    def calc_change(current, previous):
+        if previous == 0:
+            return 100 if current > 0 else 0
+        return round(((current - previous) / previous) * 100, 1)
+    
+    return {
+        "period": period,
+        "current_period": {
+            "start": current_start_str,
+            "revenue": round(current_revenue, 2),
+            "orders": current_count,
+            "average_order_value": round(current_avg, 2),
+            "new_customers": current_new_customers
+        },
+        "previous_period": {
+            "start": previous_start_str,
+            "revenue": round(previous_revenue, 2),
+            "orders": previous_count,
+            "average_order_value": round(previous_avg, 2),
+            "new_customers": previous_new_customers
+        },
+        "changes": {
+            "revenue": calc_change(current_revenue, previous_revenue),
+            "orders": calc_change(current_count, previous_count),
+            "average_order_value": calc_change(current_avg, previous_avg),
+            "new_customers": calc_change(current_new_customers, previous_new_customers)
+        }
+    }
+
+@api_router.get("/metrics/revenue")
+async def get_revenue_metrics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    group_by: str = "day",  # day, week, month
+    current_user: dict = Depends(get_current_user)
+):
+    """Get revenue breakdown over time"""
+    query = {"payment_status": "completed"}
+    
+    if date_from:
+        query["timestamps.created_at"] = {"$gte": date_from}
+    if date_to:
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
+        else:
+            query["timestamps.created_at"] = {"$lte": date_to}
+    
+    orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+    
+    from collections import defaultdict
+    revenue_data = defaultdict(lambda: {"revenue": 0, "orders": 0, "items": 0})
+    
+    for order in orders:
+        created_at = order.get("timestamps", {}).get("created_at", "")
+        if not created_at:
+            continue
+        
+        if group_by == "day":
+            key = created_at[:10]
+        elif group_by == "week":
+            from datetime import datetime as dt
+            date = dt.fromisoformat(created_at.replace("Z", "+00:00"))
+            key = f"{date.year}-W{date.isocalendar()[1]:02d}"
+        else:  # month
+            key = created_at[:7]
+        
+        revenue_data[key]["revenue"] += order["total"]
+        revenue_data[key]["orders"] += 1
+        revenue_data[key]["items"] += sum(i["quantity"] for i in order.get("items", []))
+    
+    result = [{"period": k, **v} for k, v in sorted(revenue_data.items())]
+    
+    return {
+        "group_by": group_by,
+        "data": result,
+        "total_revenue": sum(d["revenue"] for d in result),
+        "total_orders": sum(d["orders"] for d in result)
+    }
+
+@api_router.get("/metrics/items")
+async def get_item_metrics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get item/service performance metrics"""
+    query = {"payment_status": "completed"}
+    
+    if date_from:
+        query["timestamps.created_at"] = {"$gte": date_from}
+    if date_to:
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
+        else:
+            query["timestamps.created_at"] = {"$lte": date_to}
+    
+    orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+    
+    item_stats = {}
+    for order in orders:
+        for item in order.get("items", []):
+            name = item["item_name"]
+            if name not in item_stats:
+                item_stats[name] = {
+                    "name": name,
+                    "quantity": 0,
+                    "revenue": 0,
+                    "orders": 0,
+                    "by_service_type": {"regular": 0, "express": 0, "delicate": 0}
+                }
+            item_stats[name]["quantity"] += item["quantity"]
+            item_stats[name]["revenue"] += item["total_price"] - item.get("discount_applied", 0)
+            item_stats[name]["orders"] += 1
+            service_type = item.get("service_type", "regular")
+            item_stats[name]["by_service_type"][service_type] += item["quantity"]
+    
+    sorted_items = sorted(item_stats.values(), key=lambda x: x["revenue"], reverse=True)
+    
+    return {
+        "items": sorted_items,
+        "total_items": sum(i["quantity"] for i in sorted_items),
+        "total_revenue": sum(i["revenue"] for i in sorted_items)
+    }
+
+@api_router.get("/metrics/customers")
+async def get_customer_metrics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get customer analytics"""
+    query = {"payment_status": "completed"}
+    
+    if date_from:
+        query["timestamps.created_at"] = {"$gte": date_from}
+    if date_to:
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
+        else:
+            query["timestamps.created_at"] = {"$lte": date_to}
+    
+    orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+    
+    customer_stats = {}
+    for order in orders:
+        cid = order["customer_id"]
+        if cid not in customer_stats:
+            customer_stats[cid] = {
+                "customer_id": cid,
+                "customer_name": order["customer_name"],
+                "customer_type": order.get("customer_type", "retail"),
+                "orders": 0,
+                "revenue": 0
+            }
+        customer_stats[cid]["orders"] += 1
+        customer_stats[cid]["revenue"] += order["total"]
+    
+    sorted_customers = sorted(customer_stats.values(), key=lambda x: x["revenue"], reverse=True)
+    
+    # Customer type breakdown
+    retail_count = sum(1 for c in sorted_customers if c["customer_type"] == "retail")
+    business_count = sum(1 for c in sorted_customers if c["customer_type"] == "business")
+    retail_revenue = sum(c["revenue"] for c in sorted_customers if c["customer_type"] == "retail")
+    business_revenue = sum(c["revenue"] for c in sorted_customers if c["customer_type"] == "business")
+    
+    return {
+        "top_customers": sorted_customers[:20],
+        "total_customers": len(sorted_customers),
+        "by_type": {
+            "retail": {"count": retail_count, "revenue": retail_revenue},
+            "business": {"count": business_count, "revenue": business_revenue}
+        },
+        "average_customer_value": sum(c["revenue"] for c in sorted_customers) / len(sorted_customers) if sorted_customers else 0
+    }
+
+@api_router.get("/metrics/payments")
+async def get_payment_metrics(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get payment method breakdown"""
+    query = {"payment_status": "completed"}
+    
+    if date_from:
+        query["timestamps.created_at"] = {"$gte": date_from}
+    if date_to:
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
+        else:
+            query["timestamps.created_at"] = {"$lte": date_to}
+    
+    orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+    
+    payment_stats = {}
+    for order in orders:
+        method = order.get("payment_method", "unknown")
+        if method not in payment_stats:
+            payment_stats[method] = {"method": method, "count": 0, "revenue": 0}
+        payment_stats[method]["count"] += 1
+        payment_stats[method]["revenue"] += order["total"]
+    
+    return {
+        "by_method": list(payment_stats.values()),
+        "total_revenue": sum(p["revenue"] for p in payment_stats.values())
+    }
+
+@api_router.get("/metrics/export/{report_type}")
+async def export_metrics(
+    report_type: str,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export metrics as CSV"""
+    query = {}
+    if date_from:
+        query["timestamps.created_at"] = {"$gte": date_from}
+    if date_to:
+        if "timestamps.created_at" in query:
+            query["timestamps.created_at"]["$lte"] = date_to
+        else:
+            query["timestamps.created_at"] = {"$lte": date_to}
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    if report_type == "orders":
+        writer.writerow(["Order Number", "Date", "Customer", "Items", "Subtotal", "Tax", "Discount", "Total", "Status", "Payment"])
+        orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+        for o in orders:
+            writer.writerow([
+                o["order_number"],
+                o.get("timestamps", {}).get("created_at", "")[:10],
+                o["customer_name"],
+                sum(i["quantity"] for i in o.get("items", [])),
+                o["subtotal"],
+                o["tax"],
+                o.get("customer_discount_amount", 0) + o.get("volume_discount_amount", 0) + o.get("manual_discount", 0),
+                o["total"],
+                o["status"],
+                o.get("payment_method", "")
+            ])
+    
+    elif report_type == "customers":
+        writer.writerow(["Name", "Type", "Phone", "Email", "Total Orders", "Total Spent", "Avg Order", "Discount %", "Status"])
+        customers = await db.customers.find({}, {"_id": 0}).to_list(10000)
+        for c in customers:
+            status = "Blacklisted" if c.get("is_blacklisted") else "Active"
+            writer.writerow([
+                c["name"],
+                c.get("customer_type", "retail"),
+                c["phone"],
+                c.get("email", ""),
+                c.get("total_orders", 0),
+                c.get("total_spent", 0),
+                c.get("average_order_value", 0),
+                c.get("discount_percent", 0),
+                status
+            ])
+    
+    elif report_type == "items":
+        query["payment_status"] = "completed"
+        orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
+        
+        item_stats = {}
+        for order in orders:
+            for item in order.get("items", []):
+                name = item["item_name"]
+                if name not in item_stats:
+                    item_stats[name] = {"quantity": 0, "revenue": 0}
+                item_stats[name]["quantity"] += item["quantity"]
+                item_stats[name]["revenue"] += item["total_price"]
+        
+        writer.writerow(["Item Name", "Quantity Sold", "Revenue"])
+        for name, stats in sorted(item_stats.items(), key=lambda x: x[1]["revenue"], reverse=True):
+            writer.writerow([name, stats["quantity"], stats["revenue"]])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={report_type}_report.csv"}
+    )
+
+
+# ======================== REPORTS ROUTES (Legacy) ========================
 
 @api_router.get("/reports/sales")
 async def get_sales_report(
@@ -1153,11 +1652,11 @@ async def get_sales_report(
     query = {"payment_status": PaymentStatus.COMPLETED.value}
     
     if date_from or date_to:
-        query["created_at"] = {}
+        query["timestamps.created_at"] = {}
         if date_from:
-            query["created_at"]["$gte"] = date_from
+            query["timestamps.created_at"]["$gte"] = date_from
         if date_to:
-            query["created_at"]["$lte"] = date_to
+            query["timestamps.created_at"]["$lte"] = date_to
     
     orders = await db.orders.find(query, {"_id": 0}).to_list(10000)
     
@@ -1165,13 +1664,11 @@ async def get_sales_report(
     total_orders = len(orders)
     avg_order_value = total_sales / total_orders if total_orders > 0 else 0
     
-    # Payment breakdown
-    payment_breakdown = {"cash": 0, "card": 0, "bank_transfer": 0}
+    payment_breakdown = {"cash": 0, "card": 0, "bank_transfer": 0, "pay_on_collection": 0, "invoice": 0}
     for o in orders:
         method = o.get("payment_method", "cash")
         payment_breakdown[method] = payment_breakdown.get(method, 0) + o["total"]
     
-    # Top items
     item_counts = {}
     for o in orders:
         for item in o.get("items", []):
@@ -1183,14 +1680,14 @@ async def get_sales_report(
     
     top_items = sorted(item_counts.values(), key=lambda x: x["revenue"], reverse=True)[:10]
     
-    # Daily sales (last 30 days)
     daily_sales = {}
     for o in orders:
-        date = o["created_at"][:10]
-        if date not in daily_sales:
-            daily_sales[date] = {"date": date, "sales": 0, "orders": 0}
-        daily_sales[date]["sales"] += o["total"]
-        daily_sales[date]["orders"] += 1
+        date = o.get("timestamps", {}).get("created_at", "")[:10]
+        if date:
+            if date not in daily_sales:
+                daily_sales[date] = {"date": date, "sales": 0, "orders": 0}
+            daily_sales[date]["sales"] += o["total"]
+            daily_sales[date]["orders"] += 1
     
     daily_sales_list = sorted(daily_sales.values(), key=lambda x: x["date"])[-30:]
     
@@ -1207,35 +1704,30 @@ async def get_sales_report(
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
-    # Today's stats
     today_orders = await db.orders.find(
-        {"created_at": {"$gte": today}},
+        {"timestamps.created_at": {"$gte": today}},
         {"_id": 0}
     ).to_list(1000)
     
     today_revenue = sum(o["total"] for o in today_orders if o["payment_status"] == "completed")
     today_order_count = len(today_orders)
     
-    # Pending orders
-    pending_orders = await db.orders.count_documents({"status": {"$in": ["received", "processing"]}})
+    cleaning_orders = await db.orders.count_documents({"status": "cleaning"})
     ready_orders = await db.orders.count_documents({"status": "ready"})
     
-    # Delivery stats
     delivery_orders = await db.orders.count_documents({
         "delivery_info": {"$ne": None},
-        "status": {"$nin": ["delivered", "picked_up", "cancelled"]}
+        "status": {"$nin": ["delivered", "collected", "cancelled"]}
     })
     
-    # Total customers
     total_customers = await db.customers.count_documents({})
     
-    # Recent orders
-    recent_orders = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
+    recent_orders = await db.orders.find({}, {"_id": 0}).sort("timestamps.created_at", -1).to_list(5)
     
     return {
         "today_revenue": today_revenue,
         "today_orders": today_order_count,
-        "pending_orders": pending_orders,
+        "cleaning_orders": cleaning_orders,
         "ready_orders": ready_orders,
         "delivery_orders": delivery_orders,
         "total_customers": total_customers,
@@ -1247,9 +1739,6 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/seed")
 async def seed_data():
-    """Seed initial data for the application"""
-    
-    # Check if already seeded
     items_count = await db.items.count_documents({})
     if items_count > 0:
         return {"message": "Data already seeded"}
@@ -1278,140 +1767,139 @@ async def seed_data():
     
     await db.categories.insert_many(default_categories)
     
-    # Default items with parent-child relationships and volume discounts
+    # Parent item for Men's Suit
+    mens_suit_id = str(uuid.uuid4())
+    
     default_items = [
         # Men's Suits - Parent
         {
+            "id": mens_suit_id,
             "name": "Men's Suit", "category_id": category_ids["Men's Suits"], "category_name": "Men's Suits",
             "prices": {"regular": 15.99, "express": 22.99, "delicate": 28.99},
-            "description": "Complete men's suit cleaning", "parent_id": None,
+            "description": "Complete men's suit cleaning", "parent_id": None, "parent_name": None,
             "volume_discounts": [{"min_quantity": 3, "discount_percent": 10}, {"min_quantity": 5, "discount_percent": 15}]
         },
         # Men's Suits - Children
         {
             "name": "2 Piece Suit", "category_id": category_ids["Men's Suits"], "category_name": "Men's Suits",
             "prices": {"regular": 12.99, "express": 18.99, "delicate": 24.99},
-            "description": "Jacket and pants", "parent_id": "mens_suit",
+            "description": "Jacket and pants", "parent_id": mens_suit_id, "parent_name": "Men's Suit",
             "volume_discounts": [{"min_quantity": 3, "discount_percent": 10}]
         },
         {
             "name": "3 Piece Suit", "category_id": category_ids["Men's Suits"], "category_name": "Men's Suits",
             "prices": {"regular": 18.99, "express": 26.99, "delicate": 34.99},
-            "description": "Jacket, pants, and vest", "parent_id": "mens_suit",
+            "description": "Jacket, pants, and vest", "parent_id": mens_suit_id, "parent_name": "Men's Suit",
             "volume_discounts": [{"min_quantity": 3, "discount_percent": 10}]
         },
         # Shirts
         {
             "name": "Dress Shirt", "category_id": category_ids["Shirts & Tops"], "category_name": "Shirts & Tops",
             "prices": {"regular": 3.99, "express": 5.99, "delicate": 6.99},
-            "description": "Standard button-up or dress shirt",
+            "description": "Standard button-up shirt", "parent_id": None, "parent_name": None,
             "volume_discounts": [{"min_quantity": 5, "discount_percent": 10}, {"min_quantity": 10, "discount_percent": 15}]
         },
         {
             "name": "Blouse", "category_id": category_ids["Shirts & Tops"], "category_name": "Shirts & Tops",
             "prices": {"regular": 4.99, "express": 7.49, "delicate": 9.99},
-            "description": "Women's blouse"
+            "description": "Women's blouse", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Sweater", "category_id": category_ids["Shirts & Tops"], "category_name": "Shirts & Tops",
             "prices": {"regular": 5.99, "express": 8.99, "delicate": 10.99},
-            "description": "Pullover or cardigan sweater"
+            "description": "Pullover or cardigan", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         # Pants
         {
             "name": "Dress Pants", "category_id": category_ids["Pants & Bottoms"], "category_name": "Pants & Bottoms",
             "prices": {"regular": 4.99, "express": 7.49, "delicate": 8.99},
-            "description": "Dress pants, slacks, trousers",
+            "description": "Dress pants, slacks", "parent_id": None, "parent_name": None,
             "volume_discounts": [{"min_quantity": 5, "discount_percent": 10}]
         },
         {
             "name": "Skirt", "category_id": category_ids["Pants & Bottoms"], "category_name": "Pants & Bottoms",
             "prices": {"regular": 4.99, "express": 7.49, "delicate": 9.99},
-            "description": "Standard skirt"
+            "description": "Standard skirt", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         # Women's Wear
         {
             "name": "Dress", "category_id": category_ids["Women's Wear"], "category_name": "Women's Wear",
             "prices": {"regular": 9.99, "express": 14.99, "delicate": 18.99},
-            "description": "Standard dress"
+            "description": "Standard dress", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Evening Gown", "category_id": category_ids["Women's Wear"], "category_name": "Women's Wear",
             "prices": {"regular": 24.99, "express": 34.99, "delicate": 44.99},
-            "description": "Formal evening gown"
+            "description": "Formal evening gown", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         # Outerwear
         {
             "name": "Blazer", "category_id": category_ids["Outerwear"], "category_name": "Outerwear",
             "prices": {"regular": 8.99, "express": 12.99, "delicate": 15.99},
-            "description": "Business blazer"
+            "description": "Business blazer", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Coat", "category_id": category_ids["Outerwear"], "category_name": "Outerwear",
             "prices": {"regular": 12.99, "express": 18.99, "delicate": 24.99},
-            "description": "Winter coat or overcoat",
+            "description": "Winter coat", "parent_id": None, "parent_name": None,
             "volume_discounts": [{"min_quantity": 3, "discount_percent": 10}, {"min_quantity": 5, "discount_percent": 15}]
         },
         # Accessories
         {
             "name": "Tie", "category_id": category_ids["Accessories"], "category_name": "Accessories",
             "prices": {"regular": 2.99, "express": 4.49, "delicate": 5.99},
-            "description": "Necktie"
+            "description": "Necktie", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Scarf", "category_id": category_ids["Accessories"], "category_name": "Accessories",
             "prices": {"regular": 4.99, "express": 7.49, "delicate": 9.99},
-            "description": "Scarf or shawl"
+            "description": "Scarf or shawl", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         # Household
         {
             "name": "Comforter", "category_id": category_ids["Household"], "category_name": "Household",
             "prices": {"regular": 24.99, "express": 34.99, "delicate": 44.99},
-            "description": "Comforter or duvet"
+            "description": "Comforter or duvet", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Sheet Set", "category_id": category_ids["Household"], "category_name": "Household",
             "prices": {"regular": 14.99, "express": 21.99, "delicate": 29.99},
-            "description": "Sheet set"
-        },
-        {
-            "name": "Curtains (per panel)", "category_id": category_ids["Household"], "category_name": "Household",
-            "prices": {"regular": 19.99, "express": 29.99, "delicate": 39.99},
-            "description": "Per panel"
+            "description": "Sheet set", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         # Special Care
         {
             "name": "Wedding Dress", "category_id": category_ids["Special Care"], "category_name": "Special Care",
             "prices": {"regular": 149.99, "express": 199.99, "delicate": 249.99},
-            "description": "Wedding gown cleaning and preservation"
+            "description": "Wedding gown cleaning", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
         {
             "name": "Leather Jacket", "category_id": category_ids["Special Care"], "category_name": "Special Care",
             "prices": {"regular": 49.99, "express": 69.99, "delicate": 89.99},
-            "description": "Leather cleaning and conditioning"
+            "description": "Leather cleaning", "parent_id": None, "parent_name": None,
+            "volume_discounts": None
         },
     ]
     
-    # Process parent-child relationships
-    parent_ids = {}
     for item in default_items:
-        item_id = str(uuid.uuid4())
-        item["id"] = item_id
+        if "id" not in item:
+            item["id"] = str(uuid.uuid4())
         item["is_active"] = True
         item["created_at"] = now
-        
-        if item["name"] == "Men's Suit":
-            parent_ids["mens_suit"] = item_id
-        
-        if item.get("parent_id") == "mens_suit":
-            item["parent_id"] = parent_ids.get("mens_suit")
-            item["parent_name"] = "Men's Suit"
-        elif item.get("parent_id") is None:
-            item["parent_name"] = None
     
     await db.items.insert_many(default_items)
     
-    # Create default admin user
+    # Create default admin
     admin_exists = await db.users.find_one({"email": "admin@dryclean.com"})
     if not admin_exists:
         admin_doc = {
@@ -1441,7 +1929,7 @@ async def seed_data():
 
 @api_router.get("/")
 async def root():
-    return {"message": "DryClean POS API", "version": "2.0.0"}
+    return {"message": "DryClean POS API", "version": "3.0.0"}
 
 @api_router.get("/health")
 async def health():
