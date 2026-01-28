@@ -505,7 +505,7 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
     )
     
     doc.pop("_id", None)
-    return OrderResponse(**doc, status=OrderStatus.RECEIVED, payment_status=PaymentStatus.PENDING)
+    return OrderResponse(**doc)
 
 @api_router.get("/orders", response_model=List[OrderResponse])
 async def get_orders(
