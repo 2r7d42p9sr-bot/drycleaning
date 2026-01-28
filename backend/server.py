@@ -1490,10 +1490,8 @@ async def create_payment(payment: PaymentCreate, request: Request, current_user:
             }}
         )
         
-        await db.customers.update_one(
-            {"id": order["customer_id"]},
-            {"$inc": {"loyalty_points": int(payment.amount)}}
-        )
+        # Award loyalty points if customer is eligible
+        await award_loyalty_points(order["customer_id"], payment.order_id, float(payment.amount), order.get("order_number", ""))
     
     elif payment.payment_method == PaymentMethod.PAY_ON_COLLECTION:
         # Payment pending until collection
