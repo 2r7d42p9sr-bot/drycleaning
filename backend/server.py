@@ -540,7 +540,7 @@ async def get_order(order_id: str, current_user: dict = Depends(get_current_user
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return OrderResponse(**order, status=OrderStatus(order["status"]), payment_status=PaymentStatus(order["payment_status"]))
+    return OrderResponse(**order)
 
 @api_router.put("/orders/{order_id}/status", response_model=OrderResponse)
 async def update_order_status(order_id: str, update: OrderStatusUpdate, current_user: dict = Depends(get_current_user)):
