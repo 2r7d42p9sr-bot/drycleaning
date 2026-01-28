@@ -1191,6 +1191,35 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
     items_data = [item.model_dump() for item in order.items]
     delivery_data = order.delivery_info.model_dump() if order.delivery_info else None
     
+    # Handle loyalty point redemption
+    loyalty_points_redeemed = order.loyalty_points_redeemed or 0
+    loyalty_discount_amount = order.loyalty_discount_amount or 0.0
+    
+    if loyalty_points_redeemed > 0:
+        # Validate redemption
+        current_points = customer.get("loyalty_points", 0) if customer else 0
+        if loyalty_points_redeemed > current_points:
+            raise HTTPException(status_code=400, detail="Insufficient loyalty points")
+        
+        # Deduct points from customer
+        await db.customers.update_one(
+            {"id": order.customer_id},
+            {"$inc": {"loyalty_points": -loyalty_points_redeemed}}
+        )
+        
+        # Record redemption transaction
+        transaction = {
+            "id": str(uuid.uuid4()),
+            "customer_id": order.customer_id,
+            "order_id": order_id,
+            "type": "redeemed",
+            "points": -loyalty_points_redeemed,
+            "description": f"Redeemed for order {order_number}",
+            "balance_after": current_points - loyalty_points_redeemed,
+            "created_at": now
+        }
+        await db.loyalty_transactions.insert_one(transaction)
+    
     timestamps = {
         "created_at": now,
         "cleaning_at": now,  # Order starts in cleaning
@@ -1215,6 +1244,9 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
         "customer_discount_amount": order.customer_discount_amount,
         "volume_discount_amount": order.volume_discount_amount,
         "manual_discount": order.manual_discount,
+        "loyalty_points_redeemed": loyalty_points_redeemed,
+        "loyalty_discount_amount": loyalty_discount_amount,
+        "loyalty_points_earned": 0,  # Will be updated on payment
         "total": order.total,
         "notes": order.notes,
         "estimated_ready": order.estimated_ready,
