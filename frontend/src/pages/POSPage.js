@@ -327,28 +327,27 @@ export default function POSPage() {
         </div>
 
         {/* Items Grid */}
-        <ScrollArea className="flex-1 bg-white rounded-lg border border-slate-200 p-4">
+        <div className="flex-1 bg-white rounded-lg border border-slate-200 p-4 overflow-y-auto">
           <div className="item-grid">
             {filteredItems.map((item) => (
-              <Card
+              <button
                 key={item.id}
-                className="cursor-pointer card-hover border-slate-200"
+                type="button"
+                className="text-left cursor-pointer card-hover border border-slate-200 rounded-xl bg-white p-4 hover:border-blue-300 transition-colors active:scale-95"
                 onClick={() => addToCart(item)}
                 data-testid={`item-${item.id}`}
               >
-                <CardContent className="p-4">
-                  <p className="font-medium text-slate-800 text-sm mb-1 line-clamp-2">
-                    {item.name}
-                  </p>
-                  <p className="text-xs text-slate-500 mb-2">{item.category}</p>
-                  <p className="font-bold text-blue-600">
-                    ${item.prices[serviceType].toFixed(2)}
-                  </p>
-                </CardContent>
-              </Card>
+                <p className="font-medium text-slate-800 text-sm mb-1 line-clamp-2">
+                  {item.name}
+                </p>
+                <p className="text-xs text-slate-500 mb-2">{item.category}</p>
+                <p className="font-bold text-blue-600">
+                  ${item.prices[serviceType].toFixed(2)}
+                </p>
+              </button>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Right Side - Cart */}
