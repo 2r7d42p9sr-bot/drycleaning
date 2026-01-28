@@ -1,0 +1,138 @@
+{
+  "identity": {
+    "persona": "E1",
+    "philosophy": "Fusion over Imitation. Emotion First. Content is King. Zoom in. Negative Space. Contrast.",
+    "anti_patterns": [
+      "Purple/Teal CTAs",
+      "Inter everywhere (use Manrope for headings)",
+      "Center-Everything Disease",
+      "Gradient Overload",
+      "Generic 'SaaS Blue' without personality"
+    ]
+  },
+  "theme": {
+    "primary_mode": "light",
+    "secondary_mode": "dark",
+    "strategy": "Retail Brightness. High contrast for readability in bright environments. Cleanliness is the core emotion."
+  },
+  "typography": {
+    "headings": {
+      "family": "Manrope",
+      "weights": ["600", "700", "800"],
+      "usage": "Page titles, Modal headers, POS totals",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "family": "Inter",
+      "weights": ["400", "500"],
+      "usage": "Data tables, form inputs, general text",
+      "letter_spacing": "tracking-normal"
+    },
+    "monospace": {
+      "family": "JetBrains Mono",
+      "usage": "Order IDs, Receipt previews, Technical data"
+    }
+  },
+  "colors": {
+    "palette_name": "Fresh Utility",
+    "primary": {
+      "name": "Royal Slate",
+      "hex": "#334155",
+      "tailwind": "slate-700",
+      "usage": "Primary actions, Active states, Brand anchor"
+    },
+    "secondary": {
+      "name": "Clean White",
+      "hex": "#FFFFFF",
+      "tailwind": "white",
+      "usage": "Card backgrounds, Main surfaces"
+    },
+    "accent": {
+      "name": "Action Blue",
+      "hex": "#3B82F6",
+      "tailwind": "blue-500",
+      "usage": "Primary Buttons, Links, Highlights"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "info": "#0EA5E9"
+    },
+    "background": {
+      "light": "#F8FAFC",
+      "dark": "#0F172A"
+    },
+    "forbidden": ["#1B93A4", "#7351B7"]
+  },
+  "layout": {
+    "spacing_scale": "Generous (p-6, p-8, p-12)",
+    "grid_system": {
+      "pos_terminal": "Bento Mode B (High Density) - grid-cols-12 gap-4",
+      "dashboard": "Bento Mode A (Asymmetric) - grid-cols-12 gap-6",
+      "mobile": "Single column, stack vertical"
+    },
+    "container_style": "Cardless or Minimal Borders (1px border-slate-200)",
+    "radius": "rounded-md (0.375rem) or rounded-lg (0.5rem)"
+  },
+  "components": {
+    "buttons": {
+      "style": "Solid, high contrast. Pill-shaped for primary actions on POS.",
+      "hover": "brightness-110 scale-[1.02] transition-all duration-200"
+    },
+    "cards": {
+      "style": "Flat, 1px border, subtle shadow-sm. No heavy drop shadows.",
+      "hover": "border-blue-300 transition-colors duration-200"
+    },
+    "inputs": {
+      "style": "h-12 for touch targets. Border-slate-300 focus:ring-2 focus:ring-blue-500"
+    },
+    "navigation": {
+      "style": "Sidebar for Desktop POS, Bottom Nav for Mobile.",
+      "active_state": "bg-slate-100 text-slate-900 font-semibold border-r-2 border-blue-500"
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Subtle noise overlay on backgrounds to reduce digital flatness.",
+    "glassmorphism": "Used sparingly on sticky headers (backdrop-blur-md bg-white/80).",
+    "shadows": "Crisp, ambient shadows. shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+  },
+  "motion": {
+    "speed": "Fast (200ms)",
+    "easing": "ease-out",
+    "interactions": "Scale down on click (active:scale-95), Lift on hover (-translate-y-0.5)"
+  },
+  "media": {
+    "image_urls": {
+      "login_bg": "https://images.unsplash.com/photo-1689588035701-b1a59512a192?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "hero_garment": "https://images.unsplash.com/photo-1579664531470-ac357f8f8e2b?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "empty_state": "https://images.unsplash.com/photo-1735712954492-5532ca8eee05?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    "icons": "Lucide React (default) or Phosphor Icons (for polished look)"
+  },
+  "accessibility": {
+    "contrast": "WCAG AA Compliant (4.5:1 for normal text)",
+    "touch_targets": "Minimum 44px for POS elements",
+    "focus_states": "Visible ring-2 ring-offset-2 ring-blue-500"
+  },
+  "instructions_to_main_agent": [
+    "Implement the POS terminal with a focus on speed and touch capability.",
+    "Use the 'Bento Grid' layout for the main dashboard.",
+    "Ensure all text is high-contrast against the light background.",
+    "Use Manrope for all headings and Inter for body text.",
+    "Do not use gradients for backgrounds; use solid colors or subtle textures.",
+    "Add data-testid to all interactive elements.",
+    "Use Sonner for toast notifications.",
+    "Customize Shadcn components to match the 'Fresh Utility' palette."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid generic 'AI slop' aesthetics.",
+    "Create depth through layered design elements.",
+    "Do not apply universal transitions (transition: all).",
+    "Do not center align the app container.",
+    "Use modern button styles with interaction animations.",
+    "Prioritize using pre-existing components from src/components/ui.",
+    "Components MUST use named exports.",
+    "Pages MUST use default exports."
+  ]
+}
