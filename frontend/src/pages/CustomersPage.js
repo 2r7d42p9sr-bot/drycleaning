@@ -636,10 +636,14 @@ export default function CustomersPage() {
                         {customerStats.last_order_date && (
                           <div className="pt-4 border-t border-slate-200">
                             <p className="text-sm text-slate-500">
-                              Last Order: {format(new Date(customerStats.last_order_date), "MMM d, yyyy")}
+                              Last Order: {customerStats.last_order_date 
+                                ? format(new Date(customerStats.last_order_date), "MMM d, yyyy")
+                                : 'N/A'}
                             </p>
                             <p className="text-sm text-slate-500">
-                              Member Since: {format(new Date(customerStats.member_since), "MMM d, yyyy")}
+                              Member Since: {customerStats.member_since
+                                ? format(new Date(customerStats.member_since), "MMM d, yyyy")
+                                : 'N/A'}
                             </p>
                           </div>
                         )}
