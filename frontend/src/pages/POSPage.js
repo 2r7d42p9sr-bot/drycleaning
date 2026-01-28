@@ -326,7 +326,7 @@ export default function POSPage() {
                 type="button"
                 className="text-left cursor-pointer card-hover border border-slate-200 rounded-xl bg-white p-4 hover:border-blue-300 transition-colors active:scale-95"
                 onClick={() => addToCart(item)}
-                data-testid={`item-${item.id}`}
+                data-testid={`pos-item-${item.id}`}
               >
                 <p className="font-medium text-slate-800 text-sm mb-1 line-clamp-2">
                   {item.name}
