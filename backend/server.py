@@ -970,6 +970,7 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
     )
     
     doc.pop("_id", None)
+    doc.pop("timestamps", None)  # Remove timestamps from doc to avoid duplicate
     return OrderResponse(**doc, timestamps=OrderTimestamps(**timestamps))
 
 @api_router.get("/orders", response_model=List[OrderResponse])
