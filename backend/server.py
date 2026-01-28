@@ -370,6 +370,47 @@ class MetricsPeriod(BaseModel):
     repeat_customers: int
 
 
+# Loyalty Program Models
+class LoyaltyTier(BaseModel):
+    name: str
+    min_points: int
+    benefits: str
+    multiplier: float = 1.0  # Points earning multiplier
+
+class LoyaltySettings(BaseModel):
+    enabled: bool = True
+    points_per_dollar: float = 1.0  # Points earned per dollar spent
+    redemption_rate: float = 0.05  # Dollar value per point (e.g., 0.05 = 100 points = $5)
+    min_redemption_points: int = 100  # Minimum points to redeem
+    max_redemption_percent: float = 50.0  # Max % of order that can be paid with points
+    points_expiry_days: int = 365  # Points expire after X days (0 = never)
+    exclude_business_customers: bool = True
+    tiers: List[LoyaltyTier] = []
+
+class LoyaltySettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    points_per_dollar: Optional[float] = None
+    redemption_rate: Optional[float] = None
+    min_redemption_points: Optional[int] = None
+    max_redemption_percent: Optional[float] = None
+    points_expiry_days: Optional[int] = None
+    exclude_business_customers: Optional[bool] = None
+    tiers: Optional[List[LoyaltyTier]] = None
+
+class LoyaltyTransaction(BaseModel):
+    id: str
+    customer_id: str
+    order_id: Optional[str] = None
+    type: str  # "earned", "redeemed", "expired", "adjustment"
+    points: int
+    description: str
+    balance_after: int
+    created_at: str
+
+class LoyaltyRedemption(BaseModel):
+    points_to_redeem: int
+
+
 # ======================== HELPERS ========================
 
 def hash_password(password: str) -> str:
