@@ -580,6 +580,233 @@ async def update_tax_settings(tax: TaxSettings, current_user: dict = Depends(get
     return settings
 
 
+# ======================== LOYALTY PROGRAM ROUTES ========================
+
+@api_router.get("/settings/loyalty")
+async def get_loyalty_settings(current_user: dict = Depends(get_current_user)):
+    """Get loyalty program settings"""
+    loyalty = await db.loyalty_settings.find_one({"id": "default"}, {"_id": 0})
+    if not loyalty:
+        # Return default settings
+        default_settings = LoyaltySettings(
+            enabled=True,
+            points_per_dollar=1.0,
+            redemption_rate=0.05,
+            min_redemption_points=100,
+            max_redemption_percent=50.0,
+            points_expiry_days=365,
+            exclude_business_customers=True,
+            tiers=[
+                LoyaltyTier(name="Bronze", min_points=0, benefits="Earn 1x points", multiplier=1.0),
+                LoyaltyTier(name="Silver", min_points=500, benefits="Earn 1.25x points", multiplier=1.25),
+                LoyaltyTier(name="Gold", min_points=1000, benefits="Earn 1.5x points + priority service", multiplier=1.5),
+                LoyaltyTier(name="Platinum", min_points=2500, benefits="Earn 2x points + free delivery", multiplier=2.0),
+            ]
+        )
+        return {"id": "default", "settings": default_settings.model_dump()}
+    return loyalty
+
+@api_router.put("/settings/loyalty")
+async def update_loyalty_settings(settings: LoyaltySettingsUpdate, current_user: dict = Depends(get_current_user)):
+    """Update loyalty program settings"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Get existing settings
+    existing = await db.loyalty_settings.find_one({"id": "default"})
+    if existing:
+        current_settings = existing.get("settings", {})
+    else:
+        current_settings = LoyaltySettings().model_dump()
+    
+    # Update only provided fields
+    update_data = settings.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if value is not None:
+            current_settings[key] = value
+    
+    doc = {
+        "id": "default",
+        "settings": current_settings,
+        "updated_at": now
+    }
+    
+    await db.loyalty_settings.update_one(
+        {"id": "default"},
+        {"$set": doc},
+        upsert=True
+    )
+    
+    return doc
+
+@api_router.get("/customers/{customer_id}/loyalty")
+async def get_customer_loyalty(customer_id: str, current_user: dict = Depends(get_current_user)):
+    """Get customer loyalty information including points history"""
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Get loyalty settings
+    loyalty_settings = await db.loyalty_settings.find_one({"id": "default"}, {"_id": 0})
+    settings = loyalty_settings.get("settings", LoyaltySettings().model_dump()) if loyalty_settings else LoyaltySettings().model_dump()
+    
+    # Check if customer is excluded
+    is_excluded = customer.get("loyalty_excluded", False)
+    is_business = customer.get("customer_type") == "business"
+    excluded_reason = None
+    
+    if is_excluded:
+        excluded_reason = "manually_excluded"
+    elif is_business and settings.get("exclude_business_customers", True):
+        excluded_reason = "business_customer"
+    
+    # Get points history
+    transactions = await db.loyalty_transactions.find(
+        {"customer_id": customer_id}
+    ).sort("created_at", -1).limit(50).to_list(50)
+    
+    for t in transactions:
+        t.pop("_id", None)
+    
+    # Calculate tier
+    points = customer.get("loyalty_points", 0)
+    current_tier = None
+    next_tier = None
+    tiers = settings.get("tiers", [])
+    
+    for i, tier in enumerate(sorted(tiers, key=lambda x: x.get("min_points", 0), reverse=True)):
+        if points >= tier.get("min_points", 0):
+            current_tier = tier
+            break
+    
+    # Find next tier
+    for tier in sorted(tiers, key=lambda x: x.get("min_points", 0)):
+        if tier.get("min_points", 0) > points:
+            next_tier = tier
+            break
+    
+    return {
+        "customer_id": customer_id,
+        "points": points,
+        "is_excluded": is_excluded or (is_business and settings.get("exclude_business_customers", True)),
+        "excluded_reason": excluded_reason,
+        "current_tier": current_tier,
+        "next_tier": next_tier,
+        "points_to_next_tier": next_tier.get("min_points", 0) - points if next_tier else 0,
+        "redemption_value": points * settings.get("redemption_rate", 0.05),
+        "can_redeem": points >= settings.get("min_redemption_points", 100),
+        "min_redemption_points": settings.get("min_redemption_points", 100),
+        "transactions": transactions
+    }
+
+@api_router.post("/customers/{customer_id}/loyalty/adjust")
+async def adjust_loyalty_points(
+    customer_id: str,
+    adjustment: int = Query(..., description="Points to add (positive) or remove (negative)"),
+    reason: str = Query(..., description="Reason for adjustment"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Manually adjust customer loyalty points"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    customer = await db.customers.find_one({"id": customer_id})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    current_points = customer.get("loyalty_points", 0)
+    new_points = max(0, current_points + adjustment)
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update customer points
+    await db.customers.update_one(
+        {"id": customer_id},
+        {"$set": {"loyalty_points": new_points}}
+    )
+    
+    # Record transaction
+    transaction = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer_id,
+        "order_id": None,
+        "type": "adjustment",
+        "points": adjustment,
+        "description": f"Manual adjustment: {reason}",
+        "balance_after": new_points,
+        "created_at": now,
+        "adjusted_by": current_user["id"]
+    }
+    await db.loyalty_transactions.insert_one(transaction)
+    
+    return {
+        "customer_id": customer_id,
+        "previous_points": current_points,
+        "adjustment": adjustment,
+        "new_points": new_points,
+        "reason": reason
+    }
+
+@api_router.post("/loyalty/calculate-redemption")
+async def calculate_loyalty_redemption(
+    customer_id: str,
+    order_total: float,
+    points_to_redeem: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Calculate how much discount a customer can get by redeeming points"""
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Get loyalty settings
+    loyalty_doc = await db.loyalty_settings.find_one({"id": "default"}, {"_id": 0})
+    settings = loyalty_doc.get("settings", LoyaltySettings().model_dump()) if loyalty_doc else LoyaltySettings().model_dump()
+    
+    # Check if program is enabled
+    if not settings.get("enabled", True):
+        raise HTTPException(status_code=400, detail="Loyalty program is not enabled")
+    
+    # Check if customer is excluded
+    is_excluded = customer.get("loyalty_excluded", False)
+    is_business = customer.get("customer_type") == "business"
+    
+    if is_excluded or (is_business and settings.get("exclude_business_customers", True)):
+        raise HTTPException(status_code=400, detail="Customer is excluded from loyalty program")
+    
+    available_points = customer.get("loyalty_points", 0)
+    min_points = settings.get("min_redemption_points", 100)
+    redemption_rate = settings.get("redemption_rate", 0.05)
+    max_percent = settings.get("max_redemption_percent", 50.0)
+    
+    # Validate points
+    if points_to_redeem > available_points:
+        raise HTTPException(status_code=400, detail=f"Insufficient points. Available: {available_points}")
+    
+    if points_to_redeem < min_points:
+        raise HTTPException(status_code=400, detail=f"Minimum {min_points} points required for redemption")
+    
+    # Calculate discount
+    discount_value = points_to_redeem * redemption_rate
+    max_discount = order_total * (max_percent / 100)
+    
+    actual_discount = min(discount_value, max_discount)
+    actual_points_used = int(actual_discount / redemption_rate)
+    
+    return {
+        "points_available": available_points,
+        "points_requested": points_to_redeem,
+        "points_to_use": actual_points_used,
+        "discount_value": round(actual_discount, 2),
+        "max_discount_allowed": round(max_discount, 2),
+        "order_total": order_total,
+        "new_total": round(order_total - actual_discount, 2),
+        "remaining_points": available_points - actual_points_used
+    }
+
+
 # ======================== USERS ROUTES ========================
 
 @api_router.get("/users", response_model=List[UserResponse])
