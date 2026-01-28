@@ -554,7 +554,7 @@ async def update_order_status(order_id: str, update: OrderStatusUpdate, current_
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return OrderResponse(**order, status=OrderStatus(order["status"]), payment_status=PaymentStatus(order["payment_status"]))
+    return OrderResponse(**order)
 
 
 # ======================== PAYMENT ROUTES ========================
