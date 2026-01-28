@@ -316,6 +316,8 @@ class OrderBase(BaseModel):
     customer_discount_amount: float = 0.0
     volume_discount_amount: float = 0.0
     manual_discount: float = 0.0
+    loyalty_points_redeemed: int = 0
+    loyalty_discount_amount: float = 0.0
     total: float
     notes: Optional[str] = None
     estimated_ready: Optional[str] = None
@@ -336,6 +338,7 @@ class OrderResponse(OrderBase):
     payment_method: Optional[PaymentMethod] = None
     timestamps: OrderTimestamps
     created_by: str
+    loyalty_points_earned: int = 0
 
 
 # Payment Models
