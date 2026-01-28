@@ -630,7 +630,7 @@ async def create_payment(payment: PaymentCreate, request: Request, current_user:
     await db.payment_transactions.insert_one(payment_doc)
     payment_doc.pop("_id", None)
     
-    return PaymentResponse(**payment_doc, status=PaymentStatus(payment_doc["status"]), payment_method=PaymentMethod(payment_doc["payment_method"]))
+    return PaymentResponse(**payment_doc)
 
 @api_router.get("/payments/status/{session_id}")
 async def get_payment_status(session_id: str, current_user: dict = Depends(get_current_user)):
