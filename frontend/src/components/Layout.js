@@ -34,6 +34,7 @@ const navItems = [
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/items", label: "Services", icon: Package },
   { path: "/delivery", label: "Pickup & Delivery", icon: Truck },
+  { path: "/metrics", label: "Metrics", icon: TrendingUp },
   { path: "/reports", label: "Reports", icon: BarChart3 },
   { path: "/staff", label: "Staff", icon: UserCog },
   { path: "/settings", label: "Settings", icon: Settings },
