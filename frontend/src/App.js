@@ -8,6 +8,7 @@ import CustomersPage from "@/pages/CustomersPage";
 import OrdersPage from "@/pages/OrdersPage";
 import ItemsPage from "@/pages/ItemsPage";
 import ReportsPage from "@/pages/ReportsPage";
+import MetricsPage from "@/pages/MetricsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/StaffPage";
 import DeliveryPage from "@/pages/DeliveryPage";
