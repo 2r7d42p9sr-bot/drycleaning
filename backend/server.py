@@ -460,6 +460,74 @@ def calculate_volume_discount(item_id: str, quantity: int, volume_discounts: Lis
     return applicable_discount
 
 
+async def award_loyalty_points(customer_id: str, order_id: str, amount: float, order_number: str):
+    """Award loyalty points to customer after successful payment"""
+    # Get customer
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        return
+    
+    # Check if customer is excluded
+    if customer.get("loyalty_excluded", False):
+        return
+    
+    # Get loyalty settings
+    loyalty_doc = await db.loyalty_settings.find_one({"id": "default"}, {"_id": 0})
+    settings = loyalty_doc.get("settings", {}) if loyalty_doc else {}
+    
+    # Check if program is enabled
+    if not settings.get("enabled", True):
+        return
+    
+    # Business customers excluded by default
+    if customer.get("customer_type") == "business" and settings.get("exclude_business_customers", True):
+        return
+    
+    # Calculate points to award
+    points_per_dollar = settings.get("points_per_dollar", 1.0)
+    
+    # Apply tier multiplier
+    current_points = customer.get("loyalty_points", 0)
+    multiplier = 1.0
+    tiers = settings.get("tiers", [])
+    for tier in sorted(tiers, key=lambda x: x.get("min_points", 0), reverse=True):
+        if current_points >= tier.get("min_points", 0):
+            multiplier = tier.get("multiplier", 1.0)
+            break
+    
+    points_earned = int(amount * points_per_dollar * multiplier)
+    
+    if points_earned <= 0:
+        return
+    
+    # Award points
+    new_balance = current_points + points_earned
+    await db.customers.update_one(
+        {"id": customer_id},
+        {"$set": {"loyalty_points": new_balance}}
+    )
+    
+    # Update order with points earned
+    await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {"loyalty_points_earned": points_earned}}
+    )
+    
+    # Record transaction
+    now = datetime.now(timezone.utc).isoformat()
+    transaction = {
+        "id": str(uuid.uuid4()),
+        "customer_id": customer_id,
+        "order_id": order_id,
+        "type": "earned",
+        "points": points_earned,
+        "description": f"Earned from order {order_number}",
+        "balance_after": new_balance,
+        "created_at": now
+    }
+    await db.loyalty_transactions.insert_one(transaction)
+
+
 # ======================== AUTH ROUTES ========================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
