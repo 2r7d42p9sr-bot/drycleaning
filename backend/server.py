@@ -1617,10 +1617,8 @@ async def get_payment_status(session_id: str, current_user: dict = Depends(get_c
             
             order = await db.orders.find_one({"id": payment["order_id"]}, {"_id": 0})
             if order:
-                await db.customers.update_one(
-                    {"id": order["customer_id"]},
-                    {"$inc": {"loyalty_points": int(payment["amount"])}}
-                )
+                # Award loyalty points
+                await award_loyalty_points(order["customer_id"], payment["order_id"], float(payment["amount"]), order.get("order_number", ""))
     
     return {
         "status": status.status,
