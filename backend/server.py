@@ -241,6 +241,7 @@ class CustomerBase(BaseModel):
     require_advance_payment: bool = False
     is_blacklisted: bool = False
     blacklist_reason: Optional[str] = None
+    loyalty_excluded: bool = False  # Exclude from loyalty program
 
 class CustomerCreate(CustomerBase):
     pass
@@ -257,6 +258,7 @@ class CustomerUpdate(BaseModel):
     require_advance_payment: Optional[bool] = None
     is_blacklisted: Optional[bool] = None
     blacklist_reason: Optional[str] = None
+    loyalty_excluded: Optional[bool] = None
 
 class CustomerResponse(CustomerBase):
     id: str
