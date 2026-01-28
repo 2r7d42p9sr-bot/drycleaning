@@ -533,7 +533,7 @@ async def get_orders(
             query["created_at"] = {"$lte": date_to}
     
     orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
-    return [OrderResponse(**o, status=OrderStatus(o["status"]), payment_status=PaymentStatus(o["payment_status"])) for o in orders]
+    return [OrderResponse(**o) for o in orders]
 
 @api_router.get("/orders/{order_id}", response_model=OrderResponse)
 async def get_order(order_id: str, current_user: dict = Depends(get_current_user)):
