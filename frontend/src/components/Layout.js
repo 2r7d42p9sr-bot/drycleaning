@@ -23,7 +23,8 @@ import {
   X,
   ChevronDown,
   Shirt,
-  Truck
+  Truck,
+  TrendingUp
 } from "lucide-react";
 
 const navItems = [
