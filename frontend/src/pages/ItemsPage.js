@@ -111,6 +111,7 @@ export default function ItemsPage() {
       category_id: categories[0]?.id || "",
       description: "",
       parent_id: "",
+      pieces: 1,
       prices: {
         regular: 0,
         express: 0,
@@ -129,6 +130,7 @@ export default function ItemsPage() {
       category_id: item.category_id,
       description: item.description || "",
       parent_id: item.parent_id || "",
+      pieces: item.pieces || 1,
       prices: item.prices,
       volume_discounts: item.volume_discounts || [],
       is_active: item.is_active,
