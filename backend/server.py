@@ -84,6 +84,24 @@ class CustomerType(str, Enum):
     RETAIL = "retail"
     BUSINESS = "business"
 
+class InvoiceStatus(str, Enum):
+    DRAFT = "draft"
+    SENT = "sent"
+    PARTIAL = "partial"
+    PAID = "paid"
+    OVERDUE = "overdue"
+    CANCELLED = "cancelled"
+
+class NotificationEvent(str, Enum):
+    ORDER_CREATED = "order_created"
+    ORDER_CLEANING = "order_cleaning"
+    ORDER_READY = "order_ready"
+    ORDER_OUT_FOR_DELIVERY = "order_out_for_delivery"
+    ORDER_DELIVERED = "order_delivered"
+    ORDER_COLLECTED = "order_collected"
+    INVOICE_CREATED = "invoice_created"
+    INVOICE_OVERDUE = "invoice_overdue"
+
 
 # ======================== MODELS ========================
 
