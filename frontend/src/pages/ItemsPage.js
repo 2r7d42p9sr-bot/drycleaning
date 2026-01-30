@@ -44,7 +44,8 @@ import {
   DollarSign,
   ChevronRight,
   Percent,
-  FolderTree
+  FolderTree,
+  Layers
 } from "lucide-react";
 
 export default function ItemsPage() {
