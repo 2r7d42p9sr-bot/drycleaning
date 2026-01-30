@@ -1585,14 +1585,26 @@ async def get_items(
     
     items = await db.items.find(query, {"_id": 0}).to_list(1000)
     
+    # Check which items have children
+    parent_ids_with_children = set()
+    for item in items:
+        if item.get("parent_id"):
+            parent_ids_with_children.add(item["parent_id"])
+    
     if include_children and not parents_only:
         parent_items = [i for i in items if not i.get("parent_id")]
         child_items = [i for i in items if i.get("parent_id")]
         
         for parent in parent_items:
-            parent["children"] = [c for c in child_items if c.get("parent_id") == parent["id"]]
+            children = [c for c in child_items if c.get("parent_id") == parent["id"]]
+            parent["children"] = children
+            parent["has_children"] = len(children) > 0
         
         return [ItemResponse(**i) for i in parent_items]
+    
+    # Mark has_children for all items
+    for item in items:
+        item["has_children"] = item["id"] in parent_ids_with_children
     
     return [ItemResponse(**i) for i in items]
 
@@ -1602,6 +1614,12 @@ async def get_item_children(parent_id: str, current_user: dict = Depends(get_cur
     children = await db.items.find({"parent_id": parent_id, "is_active": True}, {"_id": 0}).to_list(100)
     return children
 
+@api_router.get("/items/check-has-children/{item_id}")
+async def check_item_has_children(item_id: str, current_user: dict = Depends(get_current_user)):
+    """Check if an item has children (used to prevent adding parent items to cart)"""
+    children_count = await db.items.count_documents({"parent_id": item_id, "is_active": True})
+    return {"item_id": item_id, "has_children": children_count > 0, "children_count": children_count}
+
 @api_router.get("/items/all")
 async def get_all_items(
     active_only: bool = True,
@@ -1609,6 +1627,16 @@ async def get_all_items(
 ):
     query = {"is_active": True} if active_only else {}
     items = await db.items.find(query, {"_id": 0}).to_list(1000)
+    
+    # Check which items have children
+    parent_ids_with_children = set()
+    for item in items:
+        if item.get("parent_id"):
+            parent_ids_with_children.add(item["parent_id"])
+    
+    for item in items:
+        item["has_children"] = item["id"] in parent_ids_with_children
+    
     return [ItemResponse(**i) for i in items]
 
 @api_router.get("/items/{item_id}", response_model=ItemResponse)
@@ -1619,6 +1647,7 @@ async def get_item(item_id: str, current_user: dict = Depends(get_current_user))
     
     children = await db.items.find({"parent_id": item_id}, {"_id": 0}).to_list(100)
     item["children"] = children
+    item["has_children"] = len(children) > 0
     
     return ItemResponse(**item)
 
