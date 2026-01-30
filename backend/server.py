@@ -819,6 +819,264 @@ async def update_tax_settings(tax: TaxSettings, current_user: dict = Depends(get
     return settings
 
 
+# ======================== COMPANY PROFILE ROUTES ========================
+
+UPLOAD_DIR = Path("/app/uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+@api_router.post("/settings/company-logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload company logo (max 2MB)"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Validate file size (2MB max)
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 2MB limit")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: JPEG, PNG, GIF, WebP")
+    
+    # Save file
+    file_extension = file.filename.split(".")[-1] if "." in file.filename else "png"
+    filename = f"company_logo.{file_extension}"
+    file_path = UPLOAD_DIR / filename
+    
+    with open(file_path, "wb") as f:
+        f.write(contents)
+    
+    # Update settings with logo URL
+    logo_url = f"/api/uploads/{filename}"
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.settings.update_one(
+        {"id": "default"},
+        {"$set": {"settings.company_profile.logo_url": logo_url, "updated_at": now}},
+        upsert=True
+    )
+    
+    return {"logo_url": logo_url, "message": "Logo uploaded successfully"}
+
+@api_router.get("/uploads/{filename}")
+async def get_uploaded_file(filename: str):
+    """Serve uploaded files"""
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)
+
+@api_router.put("/settings/company-profile")
+async def update_company_profile(profile: CompanyProfile, current_user: dict = Depends(get_current_user)):
+    """Update company profile settings"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Get existing profile to preserve logo_url if not provided
+    existing = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    existing_profile = existing.get("settings", {}).get("company_profile", {}) if existing else {}
+    
+    profile_data = profile.model_dump()
+    
+    # Preserve existing logo_url if not provided in update
+    if not profile_data.get("logo_url") and existing_profile.get("logo_url"):
+        profile_data["logo_url"] = existing_profile["logo_url"]
+    
+    await db.settings.update_one(
+        {"id": "default"},
+        {"$set": {"settings.company_profile": profile_data, "updated_at": now}},
+        upsert=True
+    )
+    
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    return settings
+
+@api_router.get("/settings/company-profile")
+async def get_company_profile(current_user: dict = Depends(get_current_user)):
+    """Get company profile settings"""
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    if not settings:
+        return {"company_profile": CompanyProfile().model_dump()}
+    return {"company_profile": settings.get("settings", {}).get("company_profile", CompanyProfile().model_dump())}
+
+
+# ======================== NOTIFICATION SETTINGS ROUTES ========================
+
+def get_default_notification_templates() -> List[dict]:
+    """Get default notification templates"""
+    return [
+        {
+            "event": "order_created",
+            "enabled": True,
+            "subject": "Order Confirmation - {order_number}",
+            "body": "Dear {customer_name},\n\nThank you for your order #{order_number}.\n\nWe have received your items and will begin processing them shortly.\n\nEstimated ready date: {estimated_ready}\n\nTotal: {currency}{total}\n\nThank you for choosing {business_name}!",
+            "sms_enabled": False,
+            "sms_text": "Your order #{order_number} has been received. Est. ready: {estimated_ready}"
+        },
+        {
+            "event": "order_cleaning",
+            "enabled": True,
+            "subject": "Your Order is Being Cleaned - {order_number}",
+            "body": "Dear {customer_name},\n\nYour order #{order_number} is now being cleaned.\n\nWe'll notify you when it's ready for pickup/delivery.\n\nThank you for choosing {business_name}!",
+            "sms_enabled": False,
+            "sms_text": "Order #{order_number} is being cleaned. We'll notify you when ready."
+        },
+        {
+            "event": "order_ready",
+            "enabled": True,
+            "subject": "Your Order is Ready! - {order_number}",
+            "body": "Dear {customer_name},\n\nGreat news! Your order #{order_number} is ready for pickup.\n\nPlease visit us during our opening hours to collect your items.\n\nThank you for choosing {business_name}!",
+            "sms_enabled": True,
+            "sms_text": "Your order #{order_number} is ready for pickup!"
+        },
+        {
+            "event": "order_out_for_delivery",
+            "enabled": True,
+            "subject": "Your Order is Out for Delivery - {order_number}",
+            "body": "Dear {customer_name},\n\nYour order #{order_number} is out for delivery.\n\nOur driver will be with you shortly.\n\nThank you for choosing {business_name}!",
+            "sms_enabled": True,
+            "sms_text": "Order #{order_number} is out for delivery. Driver en route!"
+        },
+        {
+            "event": "order_delivered",
+            "enabled": True,
+            "subject": "Order Delivered - {order_number}",
+            "body": "Dear {customer_name},\n\nYour order #{order_number} has been delivered.\n\nThank you for choosing {business_name}!\n\nWe hope to see you again soon.",
+            "sms_enabled": False,
+            "sms_text": "Order #{order_number} delivered. Thank you!"
+        },
+        {
+            "event": "order_collected",
+            "enabled": False,
+            "subject": "Thank You for Collecting Your Order - {order_number}",
+            "body": "Dear {customer_name},\n\nThank you for collecting your order #{order_number}.\n\nWe hope you're satisfied with our service!\n\nSee you again at {business_name}!",
+            "sms_enabled": False,
+            "sms_text": "Thank you for collecting order #{order_number}!"
+        },
+        {
+            "event": "invoice_created",
+            "enabled": True,
+            "subject": "Invoice {invoice_number} - {business_name}",
+            "body": "Dear {customer_name},\n\nPlease find attached invoice {invoice_number} for your recent orders.\n\nTotal Amount: {currency}{total}\nDue Date: {due_date}\n\nPayment Terms: {payment_terms} days\n\nThank you for your business!",
+            "sms_enabled": False,
+            "sms_text": None
+        },
+        {
+            "event": "invoice_overdue",
+            "enabled": True,
+            "subject": "Overdue Invoice Reminder - {invoice_number}",
+            "body": "Dear {customer_name},\n\nThis is a reminder that invoice {invoice_number} is overdue.\n\nAmount Due: {currency}{amount_due}\nOriginal Due Date: {due_date}\n\nPlease arrange payment at your earliest convenience.\n\nThank you,\n{business_name}",
+            "sms_enabled": False,
+            "sms_text": None
+        }
+    ]
+
+@api_router.get("/settings/notifications")
+async def get_notification_settings(current_user: dict = Depends(get_current_user)):
+    """Get notification settings"""
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    
+    if not settings or not settings.get("settings", {}).get("notification_settings"):
+        # Return default settings
+        return {
+            "notification_settings": {
+                "email_provider": EmailProviderConfig().model_dump(),
+                "templates": get_default_notification_templates()
+            }
+        }
+    
+    return {"notification_settings": settings["settings"]["notification_settings"]}
+
+@api_router.put("/settings/notifications")
+async def update_notification_settings(
+    notification_settings: NotificationSettings,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update notification settings"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    settings_data = notification_settings.model_dump()
+    
+    # If no templates provided, use defaults
+    if not settings_data.get("templates"):
+        settings_data["templates"] = get_default_notification_templates()
+    
+    await db.settings.update_one(
+        {"id": "default"},
+        {"$set": {"settings.notification_settings": settings_data, "updated_at": now}},
+        upsert=True
+    )
+    
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    return {"notification_settings": settings["settings"]["notification_settings"]}
+
+@api_router.put("/settings/notifications/template/{event}")
+async def update_notification_template(
+    event: str,
+    template: NotificationTemplate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a specific notification template"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Get existing settings
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    notification_settings = settings.get("settings", {}).get("notification_settings", {}) if settings else {}
+    templates = notification_settings.get("templates", get_default_notification_templates())
+    
+    # Update the specific template
+    template_updated = False
+    for i, t in enumerate(templates):
+        if t.get("event") == event:
+            templates[i] = template.model_dump()
+            template_updated = True
+            break
+    
+    if not template_updated:
+        templates.append(template.model_dump())
+    
+    await db.settings.update_one(
+        {"id": "default"},
+        {"$set": {"settings.notification_settings.templates": templates, "updated_at": now}},
+        upsert=True
+    )
+    
+    return {"message": f"Template for {event} updated successfully", "template": template.model_dump()}
+
+@api_router.put("/settings/notifications/email-provider")
+async def update_email_provider(
+    provider_config: EmailProviderConfig,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update email provider configuration"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    await db.settings.update_one(
+        {"id": "default"},
+        {"$set": {"settings.notification_settings.email_provider": provider_config.model_dump(), "updated_at": now}},
+        upsert=True
+    )
+    
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    return {"email_provider": settings["settings"]["notification_settings"]["email_provider"]}
+
+
 # ======================== LOYALTY PROGRAM ROUTES ========================
 
 @api_router.get("/settings/loyalty")
