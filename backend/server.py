@@ -147,6 +147,45 @@ class CountrySettings(BaseModel):
     date_format: str = "MM/DD/YYYY"
     phone_format: Optional[str] = None
 
+class OpeningHours(BaseModel):
+    day: str  # "monday", "tuesday", etc.
+    is_open: bool = True
+    open_time: str = "09:00"
+    close_time: str = "18:00"
+
+class SocialMediaLinks(BaseModel):
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    tiktok: Optional[str] = None
+    twitter: Optional[str] = None
+    website: Optional[str] = None
+
+class CompanyProfile(BaseModel):
+    logo_url: Optional[str] = None
+    logo_on_receipts: bool = False
+    logo_on_labels: bool = False
+    social_media: Optional[SocialMediaLinks] = None
+    opening_hours: Optional[List[OpeningHours]] = None
+
+class EmailProviderConfig(BaseModel):
+    provider: Optional[str] = None  # "sendgrid", "ses", "smtp", or None for not configured
+    api_key: Optional[str] = None
+    from_email: Optional[str] = None
+    from_name: Optional[str] = None
+    is_configured: bool = False
+
+class NotificationTemplate(BaseModel):
+    event: NotificationEvent
+    enabled: bool = True
+    subject: str
+    body: str
+    sms_enabled: bool = False
+    sms_text: Optional[str] = None
+
+class NotificationSettings(BaseModel):
+    email_provider: Optional[EmailProviderConfig] = None
+    templates: Optional[List[NotificationTemplate]] = None
+
 class BusinessSettings(BaseModel):
     business_name: str = "DryClean POS"
     address: Optional[str] = None
@@ -154,6 +193,8 @@ class BusinessSettings(BaseModel):
     email: Optional[str] = None
     country: CountrySettings = CountrySettings()
     tax: TaxSettings = TaxSettings()
+    company_profile: Optional[CompanyProfile] = None
+    notification_settings: Optional[NotificationSettings] = None
     auto_print_receipt: bool = True
     auto_print_labels: bool = True
     open_drawer_on_payment: bool = True
