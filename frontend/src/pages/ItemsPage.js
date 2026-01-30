@@ -293,6 +293,12 @@ export default function ItemsPage() {
                       <div className="flex-1 text-left">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-800">{item.name}</span>
+                          {item.pieces > 1 && (
+                            <Badge variant="outline" className="text-xs">
+                              <Layers className="w-3 h-3 mr-1" />
+                              {item.pieces} pieces
+                            </Badge>
+                          )}
                           {item.volume_discounts?.length > 0 && (
                             <Badge className="bg-green-100 text-green-800 text-xs">
                               <Percent className="w-3 h-3 mr-1" />
