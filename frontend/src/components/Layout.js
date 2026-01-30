@@ -24,7 +24,8 @@ import {
   ChevronDown,
   Shirt,
   Truck,
-  TrendingUp
+  TrendingUp,
+  FileText
 } from "lucide-react";
 
 const navItems = [
@@ -34,6 +35,7 @@ const navItems = [
   { path: "/customers", label: "Customers", icon: Users },
   { path: "/items", label: "Services", icon: Package },
   { path: "/delivery", label: "Pickup & Delivery", icon: Truck },
+  { path: "/invoices", label: "Invoices", icon: FileText },
   { path: "/metrics", label: "Metrics", icon: TrendingUp },
   { path: "/reports", label: "Reports", icon: BarChart3 },
   { path: "/staff", label: "Staff", icon: UserCog },
