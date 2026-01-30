@@ -1710,11 +1710,36 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
     if customer and customer.get("is_blacklisted"):
         raise HTTPException(status_code=400, detail="Customer is blacklisted and cannot place orders")
     
+    # Check if customer has overdue invoices (for business customers)
+    overdue_warning = None
+    if customer and customer.get("customer_type") == "business":
+        overdue_invoices = await db.invoices.count_documents({
+            "customer_id": order.customer_id,
+            "status": "overdue"
+        })
+        if overdue_invoices > 0:
+            overdue_warning = f"Warning: This customer has {overdue_invoices} overdue invoice(s)"
+    
     order_id = str(uuid.uuid4())
     order_number = generate_order_number()
     now = datetime.now(timezone.utc).isoformat()
     
     items_data = [item.model_dump() for item in order.items]
+    
+    # Generate garment tags for all items
+    garment_tags = generate_garment_tags_for_order(order_number, items_data)
+    
+    # Attach garment tags to items
+    tag_index = 0
+    for item in items_data:
+        item_tags = []
+        quantity = item.get("quantity", 1)
+        pieces = item.get("pieces", 1)
+        tags_for_item = quantity * pieces
+        item_tags = garment_tags[tag_index:tag_index + tags_for_item]
+        tag_index += tags_for_item
+        item["garment_tags"] = item_tags
+    
     delivery_data = order.delivery_info.model_dump() if order.delivery_info else None
     
     # Handle loyalty point redemption
@@ -1763,6 +1788,7 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
         "customer_phone": order.customer_phone,
         "customer_type": order.customer_type.value if isinstance(order.customer_type, Enum) else order.customer_type,
         "items": items_data,
+        "garment_tags": garment_tags,  # Store all garment tags at order level too
         "subtotal": order.subtotal,
         "tax": order.tax,
         "tax_details": order.tax_details,
@@ -1781,7 +1807,8 @@ async def create_order(order: OrderCreate, current_user: dict = Depends(get_curr
         "payment_status": PaymentStatus.PENDING.value,
         "payment_method": None,
         "timestamps": timestamps,
-        "created_by": current_user["id"]
+        "created_by": current_user["id"],
+        "overdue_warning": overdue_warning
     }
     await db.orders.insert_one(doc)
     
