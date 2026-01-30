@@ -246,6 +246,7 @@ class ItemBase(BaseModel):
     is_active: bool = True
     parent_id: Optional[str] = None
     volume_discounts: Optional[List[VolumeDiscount]] = None
+    pieces: int = 1  # Number of pieces (e.g., 2-piece suit = 2 garment tags)
 
 class ItemCreate(ItemBase):
     pass
@@ -258,12 +259,14 @@ class ItemUpdate(BaseModel):
     is_active: Optional[bool] = None
     parent_id: Optional[str] = None
     volume_discounts: Optional[List[VolumeDiscount]] = None
+    pieces: Optional[int] = None
 
 class ItemResponse(ItemBase):
     id: str
     category_name: Optional[str] = None
     parent_name: Optional[str] = None
     children: Optional[List[dict]] = None
+    has_children: bool = False
     created_at: str
 
 
