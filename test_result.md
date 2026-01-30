@@ -115,75 +115,93 @@ user_problem_statement: |
 backend:
   - task: "Company profile settings (logo upload, social media, opening hours)"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented logo upload endpoint, company profile update, social media links, opening hours"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/settings/company-profile returns profile data. PUT /api/settings/company-profile successfully updates logo_on_receipts, logo_on_labels, social_media links (Facebook, Instagram, TikTok), and opening_hours. Data persistence verified."
 
   - task: "Email notification settings and templates"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented notification settings endpoints with configurable templates per order status"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/settings/notifications returns default templates and email provider config. PUT /api/settings/notifications successfully updates email provider settings (SendGrid config) and notification templates for order events."
 
   - task: "Items pieces field and parent-child has_children check"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added pieces field to items, added has_children property to items response"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/items successfully creates items with pieces field (tested with pieces=2). GET /api/items returns has_children field for all items. GET /api/items/check-has-children/{item_id} correctly returns has_children status and children_count."
 
   - task: "Invoice system for business accounts"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented invoice CRUD, payment recording, overdue tracking, summary"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Created business customer with customer_type='business'. Created order with payment_method='invoice'. GET /api/orders/uninvoiced/{customer_id} works. GET /api/invoices returns invoice list. GET /api/invoices/summary returns summary stats. Invoice payment recording endpoints functional."
 
   - task: "QR code generation for garment labels"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented garment tag generation with QR codes on order creation"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/orders/{order_id}/garment-tags returns garment tags with QR codes (found 2 tags for 2-piece item). Each tag has garment_id, qr_code_data, and qr_code_base64. GET /api/garment/{garment_id} successfully looks up garment by ID. GET /api/orders/{order_id}/labels endpoint working for printable labels."
 
   - task: "Loyalty redemption settings"
     implemented: true
-    working: "NA"
+    working: true
     file: "server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Loyalty settings already existed with redemption_rate, min_points, max_percent"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Loyalty settings endpoints functional from previous testing. All redemption settings (redemption_rate, min_redemption_points, max_redemption_percent) working correctly."
 
 frontend:
   - task: "Settings page - Company Profile tab"
