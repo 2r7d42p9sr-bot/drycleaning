@@ -561,6 +561,63 @@ def generate_order_number() -> str:
     now = datetime.now(timezone.utc)
     return f"DC{now.strftime('%y%m%d')}{str(uuid.uuid4())[:4].upper()}"
 
+def generate_invoice_number() -> str:
+    now = datetime.now(timezone.utc)
+    return f"INV{now.strftime('%y%m%d')}{str(uuid.uuid4())[:4].upper()}"
+
+def generate_garment_id(order_number: str, item_index: int, piece_index: int) -> str:
+    """Generate unique garment ID for QR codes"""
+    unique_part = str(uuid.uuid4())[:6].upper()
+    return f"G{order_number[2:]}-{item_index:02d}-{piece_index:02d}-{unique_part}"
+
+def generate_qr_code_base64(data: str) -> str:
+    """Generate QR code and return as base64 string"""
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    return base64.b64encode(buffer.getvalue()).decode()
+
+def generate_garment_tags_for_order(order_number: str, items: List[dict]) -> List[dict]:
+    """Generate garment tags for all items in an order"""
+    all_tags = []
+    item_index = 0
+    
+    for item in items:
+        quantity = item.get("quantity", 1)
+        pieces_per_item = item.get("pieces", 1)
+        
+        for q in range(quantity):
+            for p in range(pieces_per_item):
+                item_index += 1
+                garment_id = generate_garment_id(order_number, item_index, p + 1)
+                
+                # QR code contains garment_id which links to order
+                qr_data = f"DRYCLEAN:{garment_id}"
+                
+                tag = {
+                    "garment_id": garment_id,
+                    "item_id": item.get("item_id"),
+                    "item_name": item.get("item_name"),
+                    "piece_number": p + 1,
+                    "total_pieces": pieces_per_item,
+                    "quantity_number": q + 1,
+                    "total_quantity": quantity,
+                    "qr_code_data": qr_data
+                }
+                all_tags.append(tag)
+    
+    return all_tags
+
 def calculate_volume_discount(item_id: str, quantity: int, volume_discounts: List[VolumeDiscount]) -> float:
     if not volume_discounts:
         return 0.0
