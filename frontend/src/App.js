@@ -12,6 +12,7 @@ import MetricsPage from "@/pages/MetricsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import StaffPage from "@/pages/StaffPage";
 import DeliveryPage from "@/pages/DeliveryPage";
+import InvoicesPage from "@/pages/InvoicesPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import Layout from "@/components/Layout";
 import "@/App.css";
