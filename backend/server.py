@@ -486,6 +486,45 @@ class LoyaltyRedemption(BaseModel):
     points_to_redeem: int
 
 
+# Invoice Models
+class InvoiceOrderItem(BaseModel):
+    order_id: str
+    order_number: str
+    order_date: str
+    amount: float
+
+class InvoiceCreate(BaseModel):
+    customer_id: str
+    order_ids: List[str]
+    due_date: str
+    notes: Optional[str] = None
+
+class InvoicePayment(BaseModel):
+    amount: float
+    payment_method: str
+    notes: Optional[str] = None
+
+class InvoiceResponse(BaseModel):
+    id: str
+    invoice_number: str
+    customer_id: str
+    customer_name: str
+    company_name: Optional[str] = None
+    orders: List[InvoiceOrderItem]
+    subtotal: float
+    tax: float
+    total: float
+    amount_paid: float
+    amount_due: float
+    status: InvoiceStatus
+    payment_terms: int  # Days
+    due_date: str
+    notes: Optional[str] = None
+    payments: Optional[List[Dict[str, Any]]] = None
+    created_at: str
+    updated_at: str
+
+
 # ======================== HELPERS ========================
 
 def hash_password(password: str) -> str:
