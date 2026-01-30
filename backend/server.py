@@ -336,6 +336,14 @@ class CustomerResponse(CustomerBase):
 
 
 # Order Models - Updated with timestamps
+class GarmentTag(BaseModel):
+    garment_id: str
+    item_id: str
+    item_name: str
+    piece_number: int
+    total_pieces: int
+    qr_code_data: str  # The data encoded in QR code
+
 class OrderItem(BaseModel):
     item_id: str
     item_name: str
@@ -346,6 +354,8 @@ class OrderItem(BaseModel):
     discount_applied: float = 0.0
     volume_discount_percent: float = 0.0
     notes: Optional[str] = None
+    pieces: int = 1  # Number of pieces per item (for garment tags)
+    garment_tags: Optional[List[GarmentTag]] = None
 
 class DeliveryInfo(BaseModel):
     type: DeliveryType
