@@ -62,6 +62,7 @@ export default function ItemsPage() {
     category_id: "",
     description: "",
     parent_id: "",
+    pieces: 1,
     prices: {
       regular: 0,
       express: 0,
