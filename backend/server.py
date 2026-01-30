@@ -1978,6 +1978,394 @@ async def get_drivers(current_user: dict = Depends(get_current_user)):
     return [{"id": u["id"], "name": u["name"]} for u in users]
 
 
+# ======================== INVOICE ROUTES ========================
+
+@api_router.post("/invoices", response_model=InvoiceResponse)
+async def create_invoice(invoice_data: InvoiceCreate, current_user: dict = Depends(get_current_user)):
+    """Create an invoice for a business customer"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get customer
+    customer = await db.customers.find_one({"id": invoice_data.customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    if customer.get("customer_type") != "business":
+        raise HTTPException(status_code=400, detail="Invoices can only be created for business customers")
+    
+    # Get orders
+    orders = await db.orders.find({
+        "id": {"$in": invoice_data.order_ids},
+        "customer_id": invoice_data.customer_id
+    }, {"_id": 0}).to_list(100)
+    
+    if len(orders) != len(invoice_data.order_ids):
+        raise HTTPException(status_code=400, detail="Some orders not found or don't belong to this customer")
+    
+    # Check orders aren't already invoiced
+    for order in orders:
+        if order.get("invoice_id"):
+            raise HTTPException(status_code=400, detail=f"Order {order['order_number']} is already on an invoice")
+    
+    invoice_id = str(uuid.uuid4())
+    invoice_number = generate_invoice_number()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Calculate totals
+    subtotal = sum(o["subtotal"] for o in orders)
+    tax = sum(o["tax"] for o in orders)
+    total = sum(o["total"] for o in orders)
+    
+    # Get payment terms from business info
+    payment_terms = customer.get("business_info", {}).get("payment_terms", 30)
+    
+    invoice_orders = [
+        {
+            "order_id": o["id"],
+            "order_number": o["order_number"],
+            "order_date": o.get("timestamps", {}).get("created_at", ""),
+            "amount": o["total"]
+        }
+        for o in orders
+    ]
+    
+    invoice_doc = {
+        "id": invoice_id,
+        "invoice_number": invoice_number,
+        "customer_id": invoice_data.customer_id,
+        "customer_name": customer["name"],
+        "company_name": customer.get("business_info", {}).get("company_name"),
+        "orders": invoice_orders,
+        "subtotal": subtotal,
+        "tax": tax,
+        "total": total,
+        "amount_paid": 0,
+        "amount_due": total,
+        "status": InvoiceStatus.SENT.value,
+        "payment_terms": payment_terms,
+        "due_date": invoice_data.due_date,
+        "notes": invoice_data.notes,
+        "payments": [],
+        "created_at": now,
+        "updated_at": now,
+        "created_by": current_user["id"]
+    }
+    
+    await db.invoices.insert_one(invoice_doc)
+    
+    # Update orders with invoice_id
+    await db.orders.update_many(
+        {"id": {"$in": invoice_data.order_ids}},
+        {"$set": {"invoice_id": invoice_id, "invoice_number": invoice_number}}
+    )
+    
+    invoice_doc.pop("_id", None)
+    return InvoiceResponse(**invoice_doc)
+
+@api_router.get("/invoices")
+async def get_invoices(
+    customer_id: Optional[str] = None,
+    status: Optional[InvoiceStatus] = None,
+    overdue_only: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all invoices with optional filters"""
+    query = {}
+    if customer_id:
+        query["customer_id"] = customer_id
+    if status:
+        query["status"] = status.value
+    
+    # Update overdue status before querying
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.invoices.update_many(
+        {
+            "status": {"$in": ["sent", "partial"]},
+            "due_date": {"$lt": today}
+        },
+        {"$set": {"status": "overdue"}}
+    )
+    
+    if overdue_only:
+        query["status"] = "overdue"
+    
+    invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return invoices
+
+@api_router.get("/invoices/summary")
+async def get_invoice_summary(current_user: dict = Depends(get_current_user)):
+    """Get invoice summary statistics"""
+    # Update overdue status
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.invoices.update_many(
+        {
+            "status": {"$in": ["sent", "partial"]},
+            "due_date": {"$lt": today}
+        },
+        {"$set": {"status": "overdue"}}
+    )
+    
+    all_invoices = await db.invoices.find({}, {"_id": 0}).to_list(10000)
+    
+    total_invoiced = sum(i["total"] for i in all_invoices)
+    total_paid = sum(i["amount_paid"] for i in all_invoices)
+    total_outstanding = sum(i["amount_due"] for i in all_invoices if i["status"] != "paid")
+    
+    status_counts = {}
+    for inv in all_invoices:
+        status = inv["status"]
+        if status not in status_counts:
+            status_counts[status] = {"count": 0, "amount": 0}
+        status_counts[status]["count"] += 1
+        status_counts[status]["amount"] += inv["amount_due"] if status != "paid" else inv["total"]
+    
+    overdue_invoices = [i for i in all_invoices if i["status"] == "overdue"]
+    overdue_total = sum(i["amount_due"] for i in overdue_invoices)
+    
+    return {
+        "total_invoiced": total_invoiced,
+        "total_paid": total_paid,
+        "total_outstanding": total_outstanding,
+        "overdue_count": len(overdue_invoices),
+        "overdue_total": overdue_total,
+        "by_status": status_counts,
+        "total_invoices": len(all_invoices)
+    }
+
+@api_router.get("/invoices/{invoice_id}")
+async def get_invoice(invoice_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a specific invoice"""
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return invoice
+
+@api_router.post("/invoices/{invoice_id}/payment")
+async def record_invoice_payment(
+    invoice_id: str,
+    payment: InvoicePayment,
+    current_user: dict = Depends(get_current_user)
+):
+    """Record a payment against an invoice"""
+    if current_user["role"] not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    invoice = await db.invoices.find_one({"id": invoice_id})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    if invoice["status"] == "paid":
+        raise HTTPException(status_code=400, detail="Invoice is already paid")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    payment_record = {
+        "id": str(uuid.uuid4()),
+        "amount": payment.amount,
+        "payment_method": payment.payment_method,
+        "notes": payment.notes,
+        "recorded_by": current_user["id"],
+        "recorded_at": now
+    }
+    
+    new_amount_paid = invoice["amount_paid"] + payment.amount
+    new_amount_due = invoice["total"] - new_amount_paid
+    new_status = "paid" if new_amount_due <= 0 else "partial"
+    
+    await db.invoices.update_one(
+        {"id": invoice_id},
+        {
+            "$push": {"payments": payment_record},
+            "$set": {
+                "amount_paid": new_amount_paid,
+                "amount_due": max(0, new_amount_due),
+                "status": new_status,
+                "updated_at": now
+            }
+        }
+    )
+    
+    # If fully paid, update related orders
+    if new_status == "paid":
+        await db.orders.update_many(
+            {"invoice_id": invoice_id},
+            {"$set": {"payment_status": "completed"}}
+        )
+    
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    return invoice
+
+@api_router.get("/customers/{customer_id}/invoices")
+async def get_customer_invoices(customer_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all invoices for a customer"""
+    invoices = await db.invoices.find({"customer_id": customer_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return invoices
+
+@api_router.get("/customers/{customer_id}/overdue-status")
+async def get_customer_overdue_status(customer_id: str, current_user: dict = Depends(get_current_user)):
+    """Check if customer has overdue invoices"""
+    # Update overdue status
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.invoices.update_many(
+        {
+            "customer_id": customer_id,
+            "status": {"$in": ["sent", "partial"]},
+            "due_date": {"$lt": today}
+        },
+        {"$set": {"status": "overdue"}}
+    )
+    
+    overdue_invoices = await db.invoices.find({
+        "customer_id": customer_id,
+        "status": "overdue"
+    }, {"_id": 0}).to_list(100)
+    
+    return {
+        "has_overdue": len(overdue_invoices) > 0,
+        "overdue_count": len(overdue_invoices),
+        "overdue_total": sum(i["amount_due"] for i in overdue_invoices),
+        "overdue_invoices": [{"invoice_number": i["invoice_number"], "amount_due": i["amount_due"], "due_date": i["due_date"]} for i in overdue_invoices]
+    }
+
+@api_router.get("/orders/uninvoiced/{customer_id}")
+async def get_uninvoiced_orders(customer_id: str, current_user: dict = Depends(get_current_user)):
+    """Get orders for a business customer that haven't been invoiced yet"""
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    if customer.get("customer_type") != "business":
+        raise HTTPException(status_code=400, detail="Uninvoiced orders only available for business customers")
+    
+    orders = await db.orders.find({
+        "customer_id": customer_id,
+        "invoice_id": {"$exists": False},
+        "payment_method": "invoice",
+        "status": {"$in": ["ready", "collected", "delivered"]}
+    }, {"_id": 0}).to_list(500)
+    
+    return orders
+
+
+# ======================== QR CODE & GARMENT LABEL ROUTES ========================
+
+@api_router.get("/orders/{order_id}/garment-tags")
+async def get_order_garment_tags(order_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all garment tags for an order"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    garment_tags = order.get("garment_tags", [])
+    
+    # Add QR code images
+    for tag in garment_tags:
+        tag["qr_code_base64"] = generate_qr_code_base64(tag["qr_code_data"])
+    
+    return {
+        "order_id": order_id,
+        "order_number": order["order_number"],
+        "customer_name": order["customer_name"],
+        "garment_tags": garment_tags,
+        "total_tags": len(garment_tags)
+    }
+
+@api_router.get("/garment/{garment_id}")
+async def lookup_garment(garment_id: str, current_user: dict = Depends(get_current_user)):
+    """Look up a garment by its ID (scanned from QR code)"""
+    # Search for the garment in orders
+    order = await db.orders.find_one(
+        {"garment_tags.garment_id": garment_id},
+        {"_id": 0}
+    )
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="Garment not found")
+    
+    # Find the specific garment tag
+    garment_tag = None
+    for tag in order.get("garment_tags", []):
+        if tag["garment_id"] == garment_id:
+            garment_tag = tag
+            break
+    
+    return {
+        "garment_id": garment_id,
+        "order_id": order["id"],
+        "order_number": order["order_number"],
+        "customer_name": order["customer_name"],
+        "customer_phone": order["customer_phone"],
+        "order_status": order["status"],
+        "payment_status": order["payment_status"],
+        "garment_details": garment_tag,
+        "order_items": order["items"],
+        "order_total": order["total"],
+        "created_at": order.get("timestamps", {}).get("created_at")
+    }
+
+@api_router.get("/qrcode/{data}")
+async def generate_qr_code_image(data: str):
+    """Generate a QR code image for given data"""
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    buffer = BytesIO()
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    
+    return StreamingResponse(buffer, media_type="image/png")
+
+@api_router.get("/orders/{order_id}/labels")
+async def get_garment_labels(
+    order_id: str,
+    include_logo: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get formatted garment labels for printing"""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get settings for logo
+    settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
+    business_name = settings.get("settings", {}).get("business_name", "DryClean POS") if settings else "DryClean POS"
+    logo_url = None
+    if include_logo:
+        company_profile = settings.get("settings", {}).get("company_profile", {}) if settings else {}
+        if company_profile.get("logo_on_labels"):
+            logo_url = company_profile.get("logo_url")
+    
+    labels = []
+    for tag in order.get("garment_tags", []):
+        label = {
+            "garment_id": tag["garment_id"],
+            "qr_code_data": tag["qr_code_data"],
+            "qr_code_base64": generate_qr_code_base64(tag["qr_code_data"]),
+            "order_number": order["order_number"],
+            "customer_name": order["customer_name"],
+            "item_name": tag["item_name"],
+            "piece_info": f"Piece {tag['piece_number']}/{tag['total_pieces']}" if tag.get("total_pieces", 1) > 1 else "",
+            "business_name": business_name,
+            "logo_url": logo_url
+        }
+        labels.append(label)
+    
+    return {
+        "order_id": order_id,
+        "order_number": order["order_number"],
+        "labels": labels,
+        "total_labels": len(labels)
+    }
+
+
 # ======================== PAYMENT ROUTES ========================
 
 @api_router.post("/payments", response_model=PaymentResponse)
