@@ -101,3 +101,167 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Add company profile features to DryClean POS:
+  1. Company logo upload (2MB max), social media links (TikTok, Instagram, Facebook), opening hours, email
+  2. Email notifications for customers on order status (provider to be configured later)
+  3. Parent items with children should NOT have price or be added to cart
+  4. Items should have "pieces" field for garment tag count
+  5. Invoice system for business accounts with tracking and overdue alerts
+  6. Loyalty program rewards redemption with variable settings
+  7. QR code generation for garment labels
+
+backend:
+  - task: "Company profile settings (logo upload, social media, opening hours)"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented logo upload endpoint, company profile update, social media links, opening hours"
+
+  - task: "Email notification settings and templates"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented notification settings endpoints with configurable templates per order status"
+
+  - task: "Items pieces field and parent-child has_children check"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added pieces field to items, added has_children property to items response"
+
+  - task: "Invoice system for business accounts"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented invoice CRUD, payment recording, overdue tracking, summary"
+
+  - task: "QR code generation for garment labels"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented garment tag generation with QR codes on order creation"
+
+  - task: "Loyalty redemption settings"
+    implemented: true
+    working: "NA"
+    file: "server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Loyalty settings already existed with redemption_rate, min_points, max_percent"
+
+frontend:
+  - task: "Settings page - Company Profile tab"
+    implemented: true
+    working: "NA"
+    file: "pages/SettingsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented logo upload, social media links, opening hours editor"
+
+  - task: "Settings page - Notifications tab"
+    implemented: true
+    working: "NA"
+    file: "pages/SettingsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented email provider config, notification templates editor"
+
+  - task: "Settings page - Loyalty tab enhancements"
+    implemented: true
+    working: "NA"
+    file: "pages/SettingsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced loyalty settings with redemption rate, min threshold, max percent"
+
+  - task: "Items page - pieces field"
+    implemented: true
+    working: "NA"
+    file: "pages/ItemsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added pieces field to item form and display"
+
+  - task: "Invoices page"
+    implemented: true
+    working: "NA"
+    file: "pages/InvoicesPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created new InvoicesPage with create, view, payment recording"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Company profile settings (logo upload, social media, opening hours)"
+    - "Items pieces field and parent-child has_children check"
+    - "Invoice system for business accounts"
+    - "QR code generation for garment labels"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented all backend features for new requirements. Need to test: 1) Logo upload (POST /api/settings/company-logo), 2) Company profile update (PUT /api/settings/company-profile), 3) Notification settings (GET/PUT /api/settings/notifications), 4) Items with pieces field and has_children property, 5) Invoice CRUD endpoints, 6) Garment tag generation on order creation."
