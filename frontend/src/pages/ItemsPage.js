@@ -485,6 +485,20 @@ export default function ItemsPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Number of Pieces</Label>
+              <Input
+                type="number"
+                min="1"
+                value={formData.pieces}
+                onChange={(e) => setFormData({ ...formData, pieces: parseInt(e.target.value) || 1 })}
+                data-testid="item-pieces-input"
+              />
+              <p className="text-xs text-slate-500">
+                How many garment labels to print (e.g., 2-piece suit = 2 labels)
+              </p>
+            </div>
+
             <div className="pt-4 border-t border-slate-200">
               <Label className="text-base font-semibold">Pricing</Label>
               <div className="grid grid-cols-3 gap-4 mt-3">
