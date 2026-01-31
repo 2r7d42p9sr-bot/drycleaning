@@ -73,6 +73,9 @@ export default function POSPage() {
   // Main Tab
   const [activeTab, setActiveTab] = useState("new-order");
   
+  // Use global settings
+  const { currencySymbol, taxRate, taxName, settings: globalSettings, refreshSettings } = useSettings();
+  
   // State
   const [parentItems, setParentItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
