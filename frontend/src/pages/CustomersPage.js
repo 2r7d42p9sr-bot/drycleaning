@@ -913,28 +913,20 @@ export default function CustomersPage() {
               {/* Preferences */}
               <div className="pt-4 border-t border-slate-200">
                 <p className="font-medium text-slate-800 mb-3">Preferences</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Fold Style</Label>
-                    <Select
-                      value={formData.preferences.fold_style}
-                      onValueChange={(value) => setFormData({
-                        ...formData,
-                        preferences: { ...formData.preferences, fold_style: value }
-                      })}
-                    >
-                      <SelectTrigger data-testid="fold-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="hanger">On Hanger</SelectItem>
-                        <SelectItem value="box">Box Fold</SelectItem>
-                      </SelectContent>
-                    </Select>
+                
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <Label>Opt out of Loyalty Program</Label>
+                    <p className="text-sm text-slate-500">Customer will not earn or redeem points</p>
                   </div>
+                  <Switch
+                    checked={formData.loyalty_opt_out}
+                    onCheckedChange={(checked) => setFormData({ ...formData, loyalty_opt_out: checked })}
+                    data-testid="loyalty-opt-out-switch"
+                  />
                 </div>
-                <div className="space-y-2 mt-4">
+
+                <div className="space-y-2">
                   <Label>Special Instructions</Label>
                   <Textarea
                     value={formData.preferences.special_instructions}
