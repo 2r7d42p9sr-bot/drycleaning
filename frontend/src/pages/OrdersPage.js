@@ -61,6 +61,7 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const { formatCurrency } = useSettings();
   const [showOrderModal, setShowOrderModal] = useState(false);
 
   useEffect(() => {
