@@ -277,15 +277,15 @@ export default function ItemsPage() {
                         <div className="flex gap-6 text-sm">
                           <div className="text-center">
                             <p className="text-slate-500">Regular</p>
-                            <p className="font-medium">${item.prices.regular.toFixed(2)}</p>
+                            <p className="font-medium">{formatCurrency(item.prices.regular)}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-amber-600">Express</p>
-                            <p className="font-medium">${item.prices.express.toFixed(2)}</p>
+                            <p className="font-medium">{formatCurrency(item.prices.express)}</p>
                           </div>
                           <div className="text-center">
                             <p className="text-purple-600">Delicate</p>
-                            <p className="font-medium">${item.prices.delicate.toFixed(2)}</p>
+                            <p className="font-medium">{formatCurrency(item.prices.delicate)}</p>
                           </div>
                         </div>
                       </div>
@@ -313,15 +313,15 @@ export default function ItemsPage() {
                       <div className="flex gap-6 text-sm">
                         <div className="text-center">
                           <p className="text-slate-500">Regular</p>
-                          <p className="font-medium">${item.prices.regular.toFixed(2)}</p>
+                          <p className="font-medium">{formatCurrency(item.prices.regular)}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-amber-600">Express</p>
-                          <p className="font-medium">${item.prices.express.toFixed(2)}</p>
+                          <p className="font-medium">{formatCurrency(item.prices.express)}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-purple-600">Delicate</p>
-                          <p className="font-medium">${item.prices.delicate.toFixed(2)}</p>
+                          <p className="font-medium">{formatCurrency(item.prices.delicate)}</p>
                         </div>
                       </div>
                     </div>
@@ -377,13 +377,13 @@ export default function ItemsPage() {
                             </div>
                             <div className="flex gap-6 text-sm">
                               <div className="text-center">
-                                <p className="font-medium">${child.prices.regular.toFixed(2)}</p>
+                                <p className="font-medium">{formatCurrency(child.prices.regular)}</p>
                               </div>
                               <div className="text-center">
-                                <p className="font-medium text-amber-600">${child.prices.express.toFixed(2)}</p>
+                                <p className="font-medium text-amber-600">{formatCurrency(child.prices.express)}</p>
                               </div>
                               <div className="text-center">
-                                <p className="font-medium text-purple-600">${child.prices.delicate.toFixed(2)}</p>
+                                <p className="font-medium text-purple-600">{formatCurrency(child.prices.delicate)}</p>
                               </div>
                             </div>
                           </div>
