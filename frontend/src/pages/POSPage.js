@@ -173,9 +173,8 @@ export default function POSPage() {
     }
   };
 
-  // Get tax rate from settings
-  const TAX_RATE = (settings?.tax?.tax_rate || 8) / 100;
-  const currencySymbol = settings?.country?.currency_symbol || "$";
+  // Get tax rate from settings - use global settings or local settings as fallback
+  const TAX_RATE = (globalSettings?.tax?.tax_rate || settings?.tax?.tax_rate || 0) / 100;
 
   // Search customers
   const searchCustomers = useCallback(async (query) => {
