@@ -79,7 +79,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-slate-500 font-medium">Today's Revenue</p>
                 <p className="text-3xl font-bold text-slate-800 mt-1" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  ${stats?.today_revenue?.toFixed(2) || "0.00"}
+                  {formatCurrency(stats?.today_revenue || 0)}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
