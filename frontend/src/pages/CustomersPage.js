@@ -758,7 +758,11 @@ export default function CustomersPage() {
                     <Label>Customer Type</Label>
                     <Select
                       value={formData.customer_type}
-                      onValueChange={(value) => setFormData({ ...formData, customer_type: value })}
+                      onValueChange={(value) => setFormData({ 
+                        ...formData, 
+                        customer_type: value,
+                        loyalty_opt_out: value === "business" ? true : formData.loyalty_opt_out
+                      })}
                     >
                       <SelectTrigger data-testid="customer-type-select">
                         <SelectValue />
