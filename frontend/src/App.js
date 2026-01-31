@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { SettingsProvider } from "@/context/SettingsContext";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import POSPage from "@/pages/POSPage";
@@ -46,22 +47,24 @@ function App() {
             path="/*"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
-                    <Route path="/pos" element={<POSPage />} />
-                    <Route path="/customers" element={<CustomersPage />} />
-                    <Route path="/orders" element={<OrdersPage />} />
-                    <Route path="/items" element={<ItemsPage />} />
-                    <Route path="/delivery" element={<DeliveryPage />} />
-                    <Route path="/invoices" element={<InvoicesPage />} />
-                    <Route path="/metrics" element={<MetricsPage />} />
-                    <Route path="/reports" element={<ReportsPage />} />
-                    <Route path="/staff" element={<StaffPage />} />
-                    <Route path="/settings" element={<SettingsPage />} />
-                  </Routes>
-                </Layout>
+                <SettingsProvider>
+                  <Layout>
+                    <Routes>
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />
+                      <Route path="/pos" element={<POSPage />} />
+                      <Route path="/customers" element={<CustomersPage />} />
+                      <Route path="/orders" element={<OrdersPage />} />
+                      <Route path="/items" element={<ItemsPage />} />
+                      <Route path="/delivery" element={<DeliveryPage />} />
+                      <Route path="/invoices" element={<InvoicesPage />} />
+                      <Route path="/metrics" element={<MetricsPage />} />
+                      <Route path="/reports" element={<ReportsPage />} />
+                      <Route path="/staff" element={<StaffPage />} />
+                      <Route path="/settings" element={<SettingsPage />} />
+                    </Routes>
+                  </Layout>
+                </SettingsProvider>
               </ProtectedRoute>
             }
           />
