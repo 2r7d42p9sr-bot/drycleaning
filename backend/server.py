@@ -1585,9 +1585,12 @@ async def get_items(
     
     items = await db.items.find(query, {"_id": 0}).to_list(1000)
     
+    # Always fetch all items to check which have children
+    all_items = await db.items.find({"is_active": True} if active_only else {}, {"_id": 0}).to_list(1000)
+    
     # Check which items have children
     parent_ids_with_children = set()
-    for item in items:
+    for item in all_items:
         if item.get("parent_id"):
             parent_ids_with_children.add(item["parent_id"])
     
