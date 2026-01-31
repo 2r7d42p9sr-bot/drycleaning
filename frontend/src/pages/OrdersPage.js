@@ -167,10 +167,11 @@ export default function OrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Orders</SelectItem>
-            <SelectItem value="received">Received</SelectItem>
-            <SelectItem value="processing">Processing</SelectItem>
+            <SelectItem value="cleaning">Cleaning</SelectItem>
             <SelectItem value="ready">Ready</SelectItem>
-            <SelectItem value="picked_up">Picked Up</SelectItem>
+            <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+            <SelectItem value="delivered">Delivered</SelectItem>
+            <SelectItem value="collected">Collected</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
