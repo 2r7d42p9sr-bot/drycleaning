@@ -1030,23 +1030,11 @@ export default function POSPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            {/* Option to add parent item itself */}
-            <button
-              className="w-full text-left p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
-              onClick={() => addToCart(selectedParentItem)}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-slate-800">{selectedParentItem?.name}</p>
-                  <p className="text-sm text-slate-500">Standard</p>
-                </div>
-                <p className="font-bold text-blue-600">
-                  {currencySymbol}{selectedParentItem?.prices[serviceType].toFixed(2)}
-                </p>
-              </div>
-            </button>
+            {selectedParentItem?.description && (
+              <p className="text-sm text-slate-500 mb-3">{selectedParentItem.description}</p>
+            )}
             
-            {/* Child items */}
+            {/* Child items only - parent items with children cannot be added */}
             {childItems.map((child) => (
               <button
                 key={child.id}
@@ -1059,6 +1047,9 @@ export default function POSPage() {
                     <p className="font-medium text-slate-800">{child.name}</p>
                     {child.description && (
                       <p className="text-sm text-slate-500">{child.description}</p>
+                    )}
+                    {child.pieces > 1 && (
+                      <p className="text-xs text-slate-400">{child.pieces} pieces</p>
                     )}
                   </div>
                   <p className="font-bold text-blue-600">
