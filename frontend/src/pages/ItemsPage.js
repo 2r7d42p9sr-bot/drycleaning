@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/context/SettingsContext";
 import {
   Plus,
   Edit,
