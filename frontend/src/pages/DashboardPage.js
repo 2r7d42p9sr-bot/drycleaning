@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import api from "@/lib/api";
+import { useSettings } from "@/context/SettingsContext";
 import {
   DollarSign,
   ShoppingCart,
@@ -16,16 +17,18 @@ import {
 } from "lucide-react";
 
 const statusColors = {
-  received: "bg-blue-100 text-blue-800",
-  processing: "bg-amber-100 text-amber-800",
+  cleaning: "bg-blue-100 text-blue-800",
   ready: "bg-green-100 text-green-800",
-  picked_up: "bg-slate-100 text-slate-800",
+  out_for_delivery: "bg-amber-100 text-amber-800",
+  delivered: "bg-purple-100 text-purple-800",
+  collected: "bg-slate-100 text-slate-800",
   cancelled: "bg-red-100 text-red-800"
 };
 
 export default function DashboardPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { formatCurrency } = useSettings();
 
   useEffect(() => {
     fetchDashboard();
