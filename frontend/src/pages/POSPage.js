@@ -328,6 +328,7 @@ export default function POSPage() {
           service_type: serviceType,
           unit_price: price,
           total_price: price,
+          pieces: item.pieces || 1,  // Include pieces for garment tag generation
           notes: "",
         },
       ]);
