@@ -44,14 +44,15 @@ import {
 import { format } from "date-fns";
 
 const STATUS_CONFIG = {
-  received: { label: "Received", color: "bg-blue-100 text-blue-800", icon: Package },
-  processing: { label: "Processing", color: "bg-amber-100 text-amber-800", icon: Clock },
+  cleaning: { label: "Cleaning", color: "bg-blue-100 text-blue-800", icon: Package },
   ready: { label: "Ready", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  picked_up: { label: "Picked Up", color: "bg-slate-100 text-slate-800", icon: Truck },
+  out_for_delivery: { label: "Out for Delivery", color: "bg-amber-100 text-amber-800", icon: Truck },
+  delivered: { label: "Delivered", color: "bg-purple-100 text-purple-800", icon: Truck },
+  collected: { label: "Collected", color: "bg-slate-100 text-slate-800", icon: CheckCircle },
   cancelled: { label: "Cancelled", color: "bg-red-100 text-red-800", icon: XCircle },
 };
 
-const STATUS_FLOW = ["received", "processing", "ready", "picked_up"];
+const STATUS_FLOW = ["cleaning", "ready", "collected"];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
