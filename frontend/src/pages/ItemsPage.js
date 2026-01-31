@@ -51,6 +51,7 @@ import {
 
 export default function ItemsPage() {
   const { user } = useAuth();
+  const { formatCurrency } = useSettings();
   const [items, setItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
   const [categories, setCategories] = useState([]);
