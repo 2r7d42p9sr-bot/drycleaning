@@ -141,7 +141,19 @@ export default function POSPage() {
         ]);
         // Items response includes parent items with children and has_children flag
         setParentItems(itemsRes.data);
-        setAllItems(itemsRes.data);
+        
+        // Create a flat list of all items including children for volume discount lookups
+        const flatItems = [];
+        itemsRes.data.forEach(item => {
+          flatItems.push(item);
+          if (item.children && item.children.length > 0) {
+            item.children.forEach(child => {
+              flatItems.push(child);
+            });
+          }
+        });
+        setAllItems(flatItems);
+        
         setCategories(categoriesRes.data);
         setSettings(settingsRes.data.settings);
       } catch (error) {
