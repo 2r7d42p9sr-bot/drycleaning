@@ -223,15 +223,16 @@ export default function OrdersPage() {
             <TableBody>
               {filteredOrders.length > 0 ? (
                 filteredOrders.map((order) => {
-                  const statusConfig = STATUS_CONFIG[order.status];
+                  const statusConfig = STATUS_CONFIG[order.status] || { label: order.status, color: "bg-slate-100 text-slate-800" };
                   const nextStatus = getNextStatus(order.status);
+                  const createdAt = order.timestamps?.created_at || order.created_at;
                   return (
                     <TableRow key={order.id} data-testid={`order-row-${order.id}`}>
                       <TableCell>
                         <div>
                           <p className="font-mono font-medium text-slate-800">{order.order_number}</p>
                           <p className="text-xs text-slate-500">
-                            {format(new Date(order.created_at), "MMM d, h:mm a")}
+                            {createdAt ? format(new Date(createdAt), "MMM d, h:mm a") : "N/A"}
                           </p>
                         </div>
                       </TableCell>
