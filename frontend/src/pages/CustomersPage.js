@@ -683,7 +683,7 @@ export default function CustomersPage() {
                                 <span className="text-slate-500">
                                   {order.items?.length || 0} items
                                 </span>
-                                <span className="font-bold text-slate-800">${order.total?.toFixed(2)}</span>
+                                <span className="font-bold text-slate-800">{formatCurrency(order.total)}</span>
                               </div>
                               <p className="text-xs text-slate-400 mt-1">
                                 {order.timestamps?.created_at 
