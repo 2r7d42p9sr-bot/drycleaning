@@ -80,7 +80,7 @@ export default function CustomersPage() {
     require_advance_payment: false,
     is_blacklisted: false,
     blacklist_reason: "",
-    loyalty_opt_out: false,
+    loyalty_excluded: false,
     business_info: {
       company_name: "",
       registration_number: "",
@@ -164,7 +164,7 @@ export default function CustomersPage() {
       require_advance_payment: false,
       is_blacklisted: false,
       blacklist_reason: "",
-      loyalty_opt_out: false,
+      loyalty_excluded: false,
       business_info: {
         company_name: "",
         registration_number: "",
@@ -192,7 +192,7 @@ export default function CustomersPage() {
       require_advance_payment: customer.require_advance_payment || false,
       is_blacklisted: customer.is_blacklisted || false,
       blacklist_reason: customer.blacklist_reason || "",
-      loyalty_opt_out: customer.loyalty_opt_out || (customer.customer_type === "business"),
+      loyalty_excluded: customer.loyalty_excluded || (customer.customer_type === "business"),
       business_info: customer.business_info || {
         company_name: "",
         registration_number: "",
@@ -763,7 +763,7 @@ export default function CustomersPage() {
                       onValueChange={(value) => setFormData({ 
                         ...formData, 
                         customer_type: value,
-                        loyalty_opt_out: value === "business" ? true : formData.loyalty_opt_out
+                        loyalty_excluded: value === "business" ? true : formData.loyalty_excluded
                       })}
                     >
                       <SelectTrigger data-testid="customer-type-select">
@@ -926,8 +926,8 @@ export default function CustomersPage() {
                     <p className="text-sm text-slate-500">Customer will not earn or redeem points</p>
                   </div>
                   <Switch
-                    checked={formData.loyalty_opt_out}
-                    onCheckedChange={(checked) => setFormData({ ...formData, loyalty_opt_out: checked })}
+                    checked={formData.loyalty_excluded}
+                    onCheckedChange={(checked) => setFormData({ ...formData, loyalty_excluded: checked })}
                     data-testid="loyalty-opt-out-switch"
                   />
                 </div>
