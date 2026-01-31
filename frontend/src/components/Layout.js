@@ -45,6 +45,7 @@ const navItems = [
 
 export const Layout = ({ children }) => {
   const { user, logout } = useAuth();
+  const { settings } = useSettings();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -52,6 +53,11 @@ export const Layout = ({ children }) => {
     logout();
     navigate("/login");
   };
+
+  // Get company logo and name from settings
+  const companyLogo = settings?.company_profile?.logo_url;
+  const businessName = settings?.business_name || "DryClean POS";
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || "";
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -62,18 +68,36 @@ export const Layout = ({ children }) => {
         }`}
       >
         <div className={`flex flex-col h-full ${!sidebarOpen && "lg:items-center"}`}>
-          {/* Logo */}
-          <div className="flex items-center h-16 px-4 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
-                <Shirt className="w-5 h-5 text-white" />
-              </div>
+          {/* Logo & Menu Toggle */}
+          <div className="flex items-center justify-between h-16 px-4 border-b border-slate-200">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {companyLogo ? (
+                <img 
+                  src={`${backendUrl}${companyLogo}`}
+                  alt={businessName}
+                  className="w-8 h-8 object-contain rounded-lg"
+                />
+              ) : (
+                <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Shirt className="w-5 h-5 text-white" />
+                </div>
+              )}
               {sidebarOpen && (
-                <span className="font-bold text-lg text-slate-800 tracking-tight">
-                  DryClean POS
+                <span className="font-bold text-lg text-slate-800 tracking-tight truncate">
+                  {businessName}
                 </span>
               )}
             </div>
+            {/* Menu toggle button - right of logo */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="flex-shrink-0 ml-2"
+              data-testid="sidebar-toggle"
+            >
+              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
           </div>
 
           {/* Navigation */}
