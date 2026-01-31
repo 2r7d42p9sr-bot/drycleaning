@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { browserPrintReceipt } from "@/lib/printer";
+import { useSettings } from "@/context/SettingsContext";
 import {
   Search,
   Plus,
