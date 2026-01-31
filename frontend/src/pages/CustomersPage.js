@@ -190,6 +190,7 @@ export default function CustomersPage() {
       require_advance_payment: customer.require_advance_payment || false,
       is_blacklisted: customer.is_blacklisted || false,
       blacklist_reason: customer.blacklist_reason || "",
+      loyalty_opt_out: customer.loyalty_opt_out || (customer.customer_type === "business"),
       business_info: customer.business_info || {
         company_name: "",
         registration_number: "",
@@ -199,7 +200,6 @@ export default function CustomersPage() {
         payment_terms: 30,
       },
       preferences: customer.preferences || {
-        fold_style: "standard",
         special_instructions: "",
       },
       addresses: customer.addresses || [],
