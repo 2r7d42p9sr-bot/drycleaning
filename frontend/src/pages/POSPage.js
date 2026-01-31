@@ -582,12 +582,14 @@ export default function POSPage() {
                 <div className="item-grid">
                   {filteredItems.map((item) => {
                     const hasVolumeDiscount = allItems.find(i => i.id === item.id)?.volume_discounts?.length > 0;
-                    const hasChildren = item.children && item.children.length > 0;
+                    const hasChildren = item.has_children || (item.children && item.children.length > 0);
                     return (
                       <button
                         key={item.id}
                         type="button"
-                        className="text-left cursor-pointer card-hover border rounded-xl bg-white p-4 hover:border-blue-300 transition-colors active:scale-95 border-slate-200"
+                        className={`text-left card-hover border rounded-xl bg-white p-4 transition-colors active:scale-95 border-slate-200 ${
+                          hasChildren ? 'cursor-pointer hover:border-blue-300' : 'cursor-pointer hover:border-blue-300'
+                        }`}
                         onClick={() => handleItemClick(item)}
                         data-testid={`pos-item-${item.id}`}
                       >
@@ -596,7 +598,7 @@ export default function POSPage() {
                             {item.name}
                           </p>
                           <div className="flex items-center gap-1">
-                            {hasVolumeDiscount && (
+                            {hasVolumeDiscount && !hasChildren && (
                               <Percent className="w-3 h-3 text-green-600 flex-shrink-0" />
                             )}
                             {hasChildren && (
@@ -606,15 +608,22 @@ export default function POSPage() {
                         </div>
                         <p className="text-xs text-slate-500 mb-2">{item.category_name}</p>
                         <div className="flex items-center justify-between">
-                          <p className="font-bold text-blue-600">
-                            {currencySymbol}{item.prices[serviceType].toFixed(2)}
-                          </p>
-                          {hasChildren && (
+                          {hasChildren ? (
                             <Badge variant="outline" className="text-xs">
-                              {item.children.length} options
+                              {item.children?.length || 'Multiple'} options
                             </Badge>
+                          ) : (
+                            <p className="font-bold text-blue-600">
+                              {currencySymbol}{item.prices[serviceType].toFixed(2)}
+                            </p>
+                          )}
+                          {item.description && !hasChildren && (
+                            <p className="text-xs text-slate-400 truncate max-w-[100px]">{item.description}</p>
                           )}
                         </div>
+                        {hasChildren && item.description && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.description}</p>
+                        )}
                       </button>
                     );
                   })}
