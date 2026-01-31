@@ -162,6 +162,7 @@ export default function CustomersPage() {
       require_advance_payment: false,
       is_blacklisted: false,
       blacklist_reason: "",
+      loyalty_opt_out: false,
       business_info: {
         company_name: "",
         registration_number: "",
@@ -171,7 +172,6 @@ export default function CustomersPage() {
         payment_terms: 30,
       },
       preferences: {
-        fold_style: "standard",
         special_instructions: "",
       },
       addresses: [],
