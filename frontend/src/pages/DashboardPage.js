@@ -217,7 +217,7 @@ export default function DashboardPage() {
                         {order.status.replace("_", " ")}
                       </Badge>
                       <p className="text-sm font-semibold text-slate-800 mt-1">
-                        ${order.total.toFixed(2)}
+                        {formatCurrency(order.total)}
                       </p>
                     </div>
                   </div>
