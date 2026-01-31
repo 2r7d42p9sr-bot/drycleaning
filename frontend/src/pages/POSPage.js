@@ -203,22 +203,25 @@ export default function POSPage() {
 
   // Handle parent item click - check for children
   const handleItemClick = async (item) => {
-    // Check if item has children
-    try {
-      const response = await api.get(`/items/children/${item.id}`);
-      const children = response.data;
-      
-      if (children && children.length > 0) {
-        // Show child selection modal
-        setSelectedParentItem(item);
-        setChildItems(children);
-        setShowChildModal(true);
-      } else {
-        // No children, add directly to cart
-        addToCart(item);
+    // Check if item has children using has_children property or API
+    const hasChildren = item.has_children || (item.children && item.children.length > 0);
+    
+    if (hasChildren) {
+      // Fetch children and show selection modal
+      try {
+        const response = await api.get(`/items/children/${item.id}`);
+        const children = response.data;
+        
+        if (children && children.length > 0) {
+          setSelectedParentItem(item);
+          setChildItems(children);
+          setShowChildModal(true);
+        }
+      } catch (error) {
+        toast.error("Failed to load item options");
       }
-    } catch (error) {
-      // If error, just add the item
+    } else {
+      // No children, add directly to cart
       addToCart(item);
     }
   };
