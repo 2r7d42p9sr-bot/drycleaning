@@ -27,6 +27,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useSettings } from "@/context/SettingsContext";
 import { browserPrintReceipt, browserPrintLabel } from "@/lib/printer";
 import {
   Search,
