@@ -578,7 +578,7 @@ export default function CustomersPage() {
                               Total Spent
                             </div>
                             <p className="text-xl font-bold text-slate-800 mt-1">
-                              ${customerStats.total_spent?.toFixed(2)}
+                              {formatCurrency(customerStats.total_spent)}
                             </p>
                           </div>
                           <div className="bg-slate-50 rounded-lg p-3">
@@ -587,7 +587,7 @@ export default function CustomersPage() {
                               Avg. Order
                             </div>
                             <p className="text-xl font-bold text-slate-800 mt-1">
-                              ${customerStats.average_order_value?.toFixed(2)}
+                              {formatCurrency(customerStats.average_order_value)}
                             </p>
                           </div>
                           <div className="bg-slate-50 rounded-lg p-3">
