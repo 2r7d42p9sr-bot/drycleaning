@@ -246,7 +246,7 @@ export default function OrdersPage() {
                         <p className="text-slate-800">{order.items.length} items</p>
                       </TableCell>
                       <TableCell>
-                        <p className="font-bold text-slate-800">${order.total.toFixed(2)}</p>
+                        <p className="font-bold text-slate-800">{formatCurrency(order.total)}</p>
                       </TableCell>
                       <TableCell>
                         <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
