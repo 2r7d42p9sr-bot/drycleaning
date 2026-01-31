@@ -252,7 +252,7 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">Total Invoiced</p>
-                  <p className="text-xl font-bold text-slate-800">${summary.total_invoiced.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-slate-800">{formatCurrency(summary.total_invoiced)}</p>
                 </div>
               </div>
             </CardContent>
@@ -265,7 +265,7 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">Total Paid</p>
-                  <p className="text-xl font-bold text-green-600">${summary.total_paid.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(summary.total_paid)}</p>
                 </div>
               </div>
             </CardContent>
@@ -278,7 +278,7 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">Outstanding</p>
-                  <p className="text-xl font-bold text-amber-600">${summary.total_outstanding.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-amber-600">{formatCurrency(summary.total_outstanding)}</p>
                 </div>
               </div>
             </CardContent>
@@ -292,7 +292,7 @@ export default function InvoicesPage() {
                 <div>
                   <p className="text-sm text-slate-500">Overdue</p>
                   <p className={`text-xl font-bold ${summary.overdue_count > 0 ? 'text-red-600' : 'text-slate-800'}`}>
-                    {summary.overdue_count} (${summary.overdue_total.toFixed(2)})
+                    {summary.overdue_count} ({formatCurrency(summary.overdue_total)})
                   </p>
                 </div>
               </div>
@@ -348,9 +348,9 @@ export default function InvoicesPage() {
                     </div>
                   </TableCell>
                   <TableCell>{invoice.orders?.length || 0}</TableCell>
-                  <TableCell className="text-right font-medium">${invoice.total.toFixed(2)}</TableCell>
-                  <TableCell className="text-right text-green-600">${invoice.amount_paid.toFixed(2)}</TableCell>
-                  <TableCell className="text-right font-bold text-slate-800">${invoice.amount_due.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(invoice.total)}</TableCell>
+                  <TableCell className="text-right text-green-600">{formatCurrency(invoice.amount_paid)}</TableCell>
+                  <TableCell className="text-right font-bold text-slate-800">{formatCurrency(invoice.amount_due)}</TableCell>
                   <TableCell>{invoice.due_date}</TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[invoice.status]}>
@@ -463,7 +463,7 @@ export default function InvoicesPage() {
                               <TableCell className="font-medium">{order.order_number}</TableCell>
                               <TableCell>{order.timestamps?.created_at?.split("T")[0]}</TableCell>
                               <TableCell>{order.items?.length || 0} items</TableCell>
-                              <TableCell className="text-right font-medium">${order.total.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-medium">{formatCurrency(order.total)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -489,7 +489,7 @@ export default function InvoicesPage() {
                   <div className="space-y-2">
                     <Label>Selected Total</Label>
                     <div className="h-10 px-3 py-2 border rounded-md bg-slate-50 text-lg font-bold">
-                      ${selectedTotal.toFixed(2)}
+                      {formatCurrency(selectedTotal)}
                     </div>
                   </div>
                 </div>
@@ -534,7 +534,7 @@ export default function InvoicesPage() {
                 <p className="text-sm text-slate-500">Invoice</p>
                 <p className="font-bold text-lg">{selectedInvoice.invoice_number}</p>
                 <p className="text-sm text-slate-500 mt-2">Amount Due</p>
-                <p className="font-bold text-xl text-slate-800">${selectedInvoice.amount_due.toFixed(2)}</p>
+                <p className="font-bold text-xl text-slate-800">{formatCurrency(selectedInvoice.amount_due)}</p>
               </div>
 
               <div className="space-y-2">
@@ -639,7 +639,7 @@ export default function InvoicesPage() {
                         <TableRow key={order.order_id}>
                           <TableCell className="font-medium">{order.order_number}</TableCell>
                           <TableCell>{order.order_date?.split("T")[0]}</TableCell>
-                          <TableCell className="text-right">${order.amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(order.amount)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -651,23 +651,23 @@ export default function InvoicesPage() {
               <div className="bg-slate-100 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-slate-600">Subtotal</span>
-                  <span>${detailInvoice.subtotal.toFixed(2)}</span>
+                  <span>{formatCurrency(detailInvoice.subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Tax</span>
-                  <span>${detailInvoice.tax.toFixed(2)}</span>
+                  <span>{formatCurrency(detailInvoice.tax)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>Total</span>
-                  <span>${detailInvoice.total.toFixed(2)}</span>
+                  <span>{formatCurrency(detailInvoice.total)}</span>
                 </div>
                 <div className="flex justify-between text-green-600">
                   <span>Amount Paid</span>
-                  <span>${detailInvoice.amount_paid.toFixed(2)}</span>
+                  <span>{formatCurrency(detailInvoice.amount_paid)}</span>
                 </div>
                 <div className="flex justify-between text-xl font-bold">
                   <span>Amount Due</span>
-                  <span>${detailInvoice.amount_due.toFixed(2)}</span>
+                  <span>{formatCurrency(detailInvoice.amount_due)}</span>
                 </div>
               </div>
 
@@ -692,7 +692,7 @@ export default function InvoicesPage() {
                             <TableCell className="capitalize">{payment.payment_method?.replace("_", " ")}</TableCell>
                             <TableCell>{payment.notes || "-"}</TableCell>
                             <TableCell className="text-right text-green-600 font-medium">
-                              ${payment.amount.toFixed(2)}
+                              {formatCurrency(payment.amount)}
                             </TableCell>
                           </TableRow>
                         ))}
