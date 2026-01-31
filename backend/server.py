@@ -1863,7 +1863,11 @@ async def get_orders(
             query["timestamps.created_at"] = {"$lte": date_to}
     
     orders = await db.orders.find(query, {"_id": 0}).sort("timestamps.created_at", -1).to_list(limit)
-    return [OrderResponse(**o, timestamps=OrderTimestamps(**o.get("timestamps", {}))) for o in orders]
+    result = []
+    for o in orders:
+        ts = o.pop("timestamps", {})
+        result.append(OrderResponse(**o, timestamps=OrderTimestamps(**ts)))
+    return result
 
 @api_router.get("/orders/by-status")
 async def get_orders_by_status(current_user: dict = Depends(get_current_user)):
