@@ -1885,7 +1885,8 @@ async def get_order(order_id: str, current_user: dict = Depends(get_current_user
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
+    ts = order.pop("timestamps", {})
+    return OrderResponse(**order, timestamps=OrderTimestamps(**ts))
 
 @api_router.put("/orders/{order_id}/status", response_model=OrderResponse)
 async def update_order_status(order_id: str, update: OrderStatusUpdate, current_user: dict = Depends(get_current_user)):
