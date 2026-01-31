@@ -134,14 +134,14 @@ export default function POSPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [parentItemsRes, allItemsRes, categoriesRes, settingsRes] = await Promise.all([
-          api.get("/items?parents_only=true"),
-          api.get("/items/all"),
+        const [itemsRes, categoriesRes, settingsRes] = await Promise.all([
+          api.get("/items"),  // Get items with children included
           api.get("/categories"),
           api.get("/settings"),
         ]);
-        setParentItems(parentItemsRes.data);
-        setAllItems(allItemsRes.data);
+        // Items response includes parent items with children and has_children flag
+        setParentItems(itemsRes.data);
+        setAllItems(itemsRes.data);
         setCategories(categoriesRes.data);
         setSettings(settingsRes.data.settings);
       } catch (error) {
