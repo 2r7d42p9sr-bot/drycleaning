@@ -359,7 +359,7 @@ export default function OrdersPage() {
                         <span className="text-slate-500">x{item.quantity}</span>
                       </div>
                       <span className="font-medium text-slate-800">
-                        ${item.total_price.toFixed(2)}
+                        {formatCurrency(item.total_price)}
                       </span>
                     </div>
                   ))}
@@ -370,21 +370,21 @@ export default function OrdersPage() {
               <div className="border-t border-slate-200 pt-4 space-y-2">
                 <div className="flex justify-between text-slate-600">
                   <span>Subtotal</span>
-                  <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                  <span>{formatCurrency(selectedOrder.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Tax</span>
-                  <span>${selectedOrder.tax.toFixed(2)}</span>
+                  <span>{formatCurrency(selectedOrder.tax)}</span>
                 </div>
                 {selectedOrder.discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount</span>
-                    <span>-${selectedOrder.discount.toFixed(2)}</span>
+                    <span>-{formatCurrency(selectedOrder.discount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold text-slate-800 pt-2 border-t border-slate-200">
                   <span>Total</span>
-                  <span>${selectedOrder.total.toFixed(2)}</span>
+                  <span>{formatCurrency(selectedOrder.total)}</span>
                 </div>
               </div>
 
