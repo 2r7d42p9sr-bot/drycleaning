@@ -169,15 +169,19 @@ export const Layout = ({ children }) => {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center px-4 gap-4 sticky top-0 z-30">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:flex"
-            data-testid="sidebar-toggle"
-          >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </Button>
+          {/* Show menu button in header only when sidebar is collapsed on mobile */}
+          {!sidebarOpen && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden"
+              data-testid="mobile-menu-toggle"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          )}
+          {/* Empty header for now - can add search, notifications, etc. */}
         </header>
 
         {/* Page Content */}
