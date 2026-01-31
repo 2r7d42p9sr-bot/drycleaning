@@ -1916,7 +1916,8 @@ async def update_order_status(order_id: str, update: OrderStatusUpdate, current_
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
+    ts = order.pop("timestamps", {})
+    return OrderResponse(**order, timestamps=OrderTimestamps(**ts))
 
 
 # ======================== DELIVERY ROUTES ========================
@@ -1975,7 +1976,8 @@ async def update_order_delivery(
         raise HTTPException(status_code=404, detail="Order not found")
     
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    return OrderResponse(**order, timestamps=OrderTimestamps(**order.get("timestamps", {})))
+    ts = order.pop("timestamps", {})
+    return OrderResponse(**order, timestamps=OrderTimestamps(**ts))
 
 @api_router.get("/drivers")
 async def get_drivers(current_user: dict = Depends(get_current_user)):
