@@ -68,6 +68,7 @@ export default function CustomersPage() {
   const [customerStats, setCustomerStats] = useState(null);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const { formatCurrency } = useSettings();
 
   // Form state
   const [formData, setFormData] = useState({
