@@ -30,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useSettings } from "@/context/SettingsContext";
 import {
   FileText,
   Plus,
