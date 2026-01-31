@@ -55,6 +55,7 @@ const STATUS_COLORS = {
 
 export default function InvoicesPage() {
   const { user } = useAuth();
+  const { formatCurrency } = useSettings();
   const [invoices, setInvoices] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
